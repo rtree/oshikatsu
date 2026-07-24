@@ -17,3 +17,14 @@
 
 いま読んだ人間が同じ限られた時間に驚き、笑い、迷い、推しを変え、その空気を共有する場所を作る。第一目的は、**今日出た漫画を、今日そこにいる人間たちで楽しく読むこと**である。Oshikatsuは「人間が参加している共有時間」を守る。
 
+```text
+Publication Batch
+  -> several chapters released together
+  -> a short Room opens
+  -> verified humans read together
+  -> emotion, letters, resonance, and changing votes form a live Groove
+  -> SEAL closes this one-time shared moment
+  -> the Room remains as a replayable memory
+```
+
+
