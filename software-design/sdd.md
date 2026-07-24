@@ -67,3 +67,15 @@ DRAFT
 `VALID`はWorld proofが有効であること、`CAPABILITY_GRANTED`はさらに同一Room内でnullifierの先行有効投票がないことを表す。UI上の「投票済み」は`SUBMITTED`ではなく`CAPABILITY_GRANTED`になった時点で表示する。
 
 
+人間証明から投票成立までの作戦の中心方針は以下
+    ```
+    Wallet・ranking・Roomを束縛したsignalでWorld ID v4 proofを取得
+    allow_legacy_proofs=falseでv4だけを受理
+    World Chainのfinalized blockを複数archive RPCで検証
+    HashPackからユーザーpayerでHCSへ直接投稿
+    Mirror Nodeでchunkを厳密に再構成
+    最初の有効nullifierへRoom capabilityを付与
+    更新・取消は同じpayerによるcompletion sequence基準のLWW
+    authority認証済みSEALで確定
+    ```
+
