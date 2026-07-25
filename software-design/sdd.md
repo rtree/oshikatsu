@@ -29,15 +29,11 @@
         ・特別なRoomが年に数回開かれる。これは漫画ではなくOshikatsuに参加している人に対する「推し」。このRoomでみんな人に対して推し合う
             🏆ファイナリスト：漫画文化に貢献した人
     -> 相互のプロフィールを閲覧し、実績がたくさんある人がRoomで推している漫画を見ることで新しい「推し」を発掘。さらにその漫画を読むことでもっとOshikatsuが捗る
-            
-
-    -> SEAL closes this one-time shared moment
-    -> the Room remains as a replayable memory
     ```
 
-# Part II: Human-Verified Ballot Protocol
+## Hackの観点からみた「Oshikatsu」
 
-## V0. Strategy
+> Cryptoを活用したSibil Resistanceな投票システム。WorldID＋HCSの組み合わせによって、投票Windowの間の時刻のみ投票可能＋特定の人物が最後に実施した投票が有効票として扱われる＋一人一票が保証される＋集計が第三者でVerifiableで特定の勢力によって操作されていない保証がある　などの民主主義に必須の公正な投票をオンラインで行うための基盤が実現
 
 人間証明から投票成立までは、次の一本の経路に固定する。
 
