@@ -77,6 +77,41 @@ npm run check
 npm run build
 ```
 
+### Strict production acceptance
+
+`npm run acceptance:production` tests only deployed HTTPS services and the public Hedera
+testnet Mirror Node. Missing endpoints, credentials, human-produced evidence, and prior-run
+persistence evidence fail the run. The command has no mock mode and no skipped tests.
+
+Required inputs:
+
+```bash
+export ACCEPTANCE_API_BASE=https://ethglobal-lisbon2026-oshikatsu.web.app
+export ACCEPTANCE_PERSISTED_ROOM_ID=<room-id-created-by-an-earlier-run>
+export ACCEPTANCE_GROOVE_EVIDENCE_FILE=/absolute/path/to/groove-evidence.json
+export ACCEPTANCE_WORLD_VERIFY_FILE=/absolute/path/to/fresh-world-verification.json
+npm run acceptance:production
+```
+
+The Groove evidence file must contain the wallet submission's exact public correlation data:
+
+```json
+{
+  "topic_id": "0.0.123",
+  "transaction_id": "0.0.456@1234567890.000000000",
+  "payer_account_id": "0.0.456",
+  "message_base64": "eyJ2IjoxfQ=="
+}
+```
+
+The World file is the fresh request body for `/api/world-id/verify`: `context_token`, `signal`,
+and the production `proof`. Proof contexts expire, so archived or replayed fixtures fail.
+
+Room persistence is a two-run gate. Preserve the newly created `evidence.room.room.id` from one
+successful run as `ACCEPTANCE_PERSISTED_ROOM_ID` for a later run, including a run after a Cloud
+Run revision restart or deployment. A first run without an independently retained prior Room is
+NG by design; it cannot prove persistence.
+
 ## Deployment targets
 
 - `apps/web`: Firebase Hosting

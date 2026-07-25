@@ -16,6 +16,7 @@
     "check": "npm run check --workspaces --if-present",
     "check:hcs-envelope": "node scripts/check-hcs-envelope-budget.mjs",
     "spike:hcs-boundary": "node scripts/hcs-boundary-spike.mjs",
+    "acceptance:production": "node scripts/acceptance-production.mjs",
     "security:check": "node scripts/check-ai-boundary.mjs",
     "test": "npm run test --workspaces --if-present"
   }
