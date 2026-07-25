@@ -27,6 +27,8 @@ async function readMirrorMessages(topicId, expectedCount) {
     if (payload.messages.length >= expectedCount) {
       return payload;
     }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
 
   throw new Error(`Mirror did not expose ${expectedCount} chunks within the polling budget.`);
