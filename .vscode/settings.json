@@ -524,6 +524,10 @@
         "/^gh api repos/hgraph-io/hedera-app/contents/src/V2App\\.tsx -H 'Accept: application/vnd\\.github\\.raw\\+json' \\| sed -n '1,220p'\nprintf '\\\\n--- methods hook ---\\\\n'\ngh api repos/hgraph-io/hedera-app/contents/src/hooks/useHederaMethods\\.ts -H 'Accept: application/vnd\\.github\\.raw\\+json' \\| sed -n '1,240p'$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^gh issue list --repo rtree/oshikatsu --state open --limit 20 --json number,title,labels,url \\| node -e 'let s=\"\";process\\.stdin\\.on\\(\"data\",d=>s\\+=d\\)\\.on\\(\"end\",\\(\\)=>console\\.log\\(JSON\\.parse\\(s\\)\\.map\\(i=>`#\\$\\{i\\.number\\} \\$\\{i\\.title\\}`\\)\\.join\\(\"\\\\n\"\\)\\)\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
