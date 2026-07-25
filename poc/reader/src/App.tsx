@@ -1,5 +1,4 @@
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
-import { IDKitRequestWidget, proofOfHuman, type IDKitResult } from "@worldcoin/idkit";
 import {
   ArrowLeft,
   BookOpen,
@@ -14,9 +13,8 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { createRoom, fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type Room, type RoomWork } from "./rooms-api";
+import { fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type Room, type RoomProjection, type RoomWork } from "./rooms-api";
 import { prepareGroove, waitForGrooveConfirmation, type GrooveStatus } from "./groove-api";
-import { prepareBallot, requestBallotProof, waitForCapability, type BallotCapability, type BallotRequest } from "./ballot-api";
 
 type View = "home" | "room" | "rankings" | "shelf" | "profile";
 
@@ -28,7 +26,7 @@ type RoomsState =
 
 type ProjectionState =
   | { status: "idle" | "loading" }
-  | { status: "ready"; events: ConfirmedGrooveEvent[] }
+  | { status: "ready"; projection: RoomProjection }
   | { status: "error" };
 
 const reactions = [
@@ -62,16 +60,9 @@ export function App() {
   const [selectedReaction, setSelectedReaction] = useState(reactions[0].id);
   const [shout, setShout] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [grooveState, setGrooveState] = useState<"idle" | "connecting" | "preparing" | "approving" | "confirming" | "confirmed">("idle");
+  const [grooveState, setGrooveState] = useState<"idle" | "connecting" | "preparing" | "approving" | "confirming" | "confirmed" | "duplicate">("idle");
   const [grooveError, setGrooveError] = useState<string | null>(null);
   const [grooveEvidence, setGrooveEvidence] = useState<Extract<GrooveStatus, { status: "CONFIRMED" }> | null>(null);
-  const [ballotOpen, setBallotOpen] = useState(false);
-  const [ballotRequest, setBallotRequest] = useState<BallotRequest | null>(null);
-  const [worldOpen, setWorldOpen] = useState(false);
-  const [ballotState, setBallotState] = useState<"idle" | "connecting" | "world" | "preparing" | "approving" | "confirming" | "granted">("idle");
-  const [ballotError, setBallotError] = useState<string | null>(null);
-  const [ballotCapability, setBallotCapability] = useState<BallotCapability | null>(null);
-  const ballotSignerRef = useRef<string | null>(null);
   const [topThree, setTopThree] = useState<string[]>([]);
   const rooms = roomsState.status === "ready" ? roomsState.rooms : [];
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
@@ -116,10 +107,28 @@ export function App() {
     setView("room");
   }
 
+  function selectRoom(room: Room, nextView: View = view) {
+    setSelectedRoomId(room.id);
+    setSelectedWorkId(room.works[0]?.id ?? null);
+    setProjectionState({ status: "loading" });
+    void loadProjection(room.id);
+    setView(nextView);
+  }
+
+  function navigate(nextView: View) {
+    if (nextView === "rankings") {
+      const room = selectedRoom ?? rooms.find((candidate) => candidate.id === "lisbon-main") ?? rooms[0];
+      if (room) selectRoom(room, "rankings");
+      else setView("rankings");
+      return;
+    }
+    setView(nextView);
+  }
+
   async function loadProjection(roomId: string) {
     try {
       const projection = await fetchRoomProjection(roomId);
-      setProjectionState({ status: "ready", events: projection.groove });
+      setProjectionState({ status: "ready", projection });
     } catch {
       setProjectionState({ status: "error" });
     }
@@ -149,38 +158,10 @@ export function App() {
       setGrooveState("confirmed");
       await loadProjection(selectedRoom.id);
     } catch (error) {
-      setGrooveError(error instanceof Error ? error.message : "Groove submission failed.");
-      setGrooveState("idle");
+      const message = error instanceof Error ? error.message : "Shout submission failed.";
+      setGrooveError(message === "DUPLICATE_SHOUT" ? "This wallet already has a confirmed Shout in this Room." : message);
+      setGrooveState(message === "DUPLICATE_SHOUT" ? "duplicate" : "idle");
     }
-  }
-
-  async function startBallot() {
-    if (!selectedRoom || topThree.length !== 3) return;
-    setBallotError(null); setBallotCapability(null);
-    try {
-      setBallotState("connecting");
-      const { requireHashPackAccount } = await import("./hedera-wallet");
-      const account = await requireHashPackAccount();
-      ballotSignerRef.current = account.signerAccountId;
-      setBallotState("world");
-      const request = await requestBallotProof(selectedRoom.id, account.accountId, topThree as [string, string, string]);
-      setBallotRequest(request); setWorldOpen(true);
-    } catch (error) {
-      setBallotError(error instanceof Error ? error.message : "Ballot request failed."); setBallotState("idle");
-    }
-  }
-
-  async function verifyAndSubmitBallot(proof: IDKitResult) {
-    if (!ballotRequest || !ballotSignerRef.current) throw new Error("Ballot context is unavailable.");
-    setBallotState("preparing");
-    const preparation = await prepareBallot(ballotRequest, proof);
-    setBallotState("approving");
-    const { submitPreparedBallot } = await import("./hedera-wallet");
-    const transactionId = await submitPreparedBallot(preparation, ballotSignerRef.current);
-    setBallotState("confirming");
-    const capability = await waitForCapability(preparation.id, transactionId);
-    setBallotCapability(capability); setBallotState("granted");
-    if (selectedRoom) await loadProjection(selectedRoom.id);
   }
 
   return (
@@ -191,20 +172,19 @@ export function App() {
           room={selectedRoom}
           work={selectedWork}
           selectedWorkId={selectedWorkId}
-          topThree={topThree}
           projectionState={projectionState}
           onBack={() => setView("home")}
           onSelectWork={setSelectedWorkId}
           onOpenGroove={() => setDialogOpen(true)}
-          onReviewBallot={() => setBallotOpen(true)}
-          onToggleTopThree={toggleTopThree}
+          onToggleShelf={toggleTopThree}
+          inShelf={topThree.includes(selectedWork.id)}
         />
       )}
-      {view === "rankings" && <RankingsView works={selectedRoom?.works ?? []} roomName={selectedRoom?.name} />}
+      {view === "rankings" && <RankingsView rooms={rooms} selectedRoom={selectedRoom} projectionState={projectionState} onSelectRoom={(room) => selectRoom(room, "rankings")} />}
       {view === "shelf" && <ShelfView topThree={topThree} works={selectedRoom?.works ?? []} />}
-      {view === "profile" && <ProfileView onRoomCreated={() => void loadRooms()} />}
+      {view === "profile" && <ProfileView />}
 
-      <BottomNav view={view} onNavigate={setView} />
+      <BottomNav view={view} onNavigate={navigate} />
 
       {dialogOpen && selectedWork && (
         <GrooveDialog
@@ -220,14 +200,13 @@ export function App() {
           evidence={grooveEvidence}
         />
       )}
-      {ballotOpen && <BallotDialog topThree={topThree} works={selectedRoom?.works ?? []} state={ballotState} error={ballotError} capability={ballotCapability} onCast={() => void startBallot()} onClose={() => setBallotOpen(false)} />}
-      {ballotRequest && <IDKitRequestWidget key={ballotRequest.context_token} open={worldOpen} onOpenChange={setWorldOpen} app_id={ballotRequest.app_id} action={ballotRequest.action} action_description={ballotRequest.action_description} rp_context={ballotRequest.rp_context} allow_legacy_proofs={false} environment="production" polling={{ interval: 1_000, timeout: 60_000 }} preset={proofOfHuman({ signal: ballotRequest.signal })} handleVerify={verifyAndSubmitBallot} onSuccess={() => setWorldOpen(false)} onError={(code) => { setBallotError(`World ID: ${code}`); setBallotState("idle"); setWorldOpen(false); }} />}
     </div>
   );
 }
 
 function HomeView({ roomsState, onEnterRoom, onRetry }: { roomsState: RoomsState; onEnterRoom: (room: Room) => void; onRetry: () => void }) {
   const featuredRoom = roomsState.status === "ready" ? roomsState.rooms.find((room) => room.id === "lisbon-main") ?? roomsState.rooms.find((room) => room.phase === "LIVE") : undefined;
+  const specialRoom = roomsState.status === "ready" ? roomsState.rooms.find((room) => room.room_type === "SPECIAL_TEAM") : undefined;
   return (
     <main className="page home-page">
       <header className="brand-bar">
@@ -258,7 +237,7 @@ function HomeView({ roomsState, onEnterRoom, onRetry }: { roomsState: RoomsState
         {roomsState.status === "loading" && <p className="room-list-status" role="status">Loading Rooms...</p>}
         {roomsState.status === "empty" && <p className="room-list-status">No Rooms are open yet.</p>}
         {roomsState.status === "error" && <div className="room-list-status" role="alert"><span>Rooms could not be loaded.</span><button className="text-action" type="button" onClick={onRetry}>Retry</button></div>}
-        {roomsState.status === "ready" && roomsState.rooms.map((room) => (
+        {roomsState.status === "ready" && roomsState.rooms.filter((room) => room.room_type === "MANGA").map((room) => (
           <button className={room.phase === "LIVE" ? "room-row live-room" : "room-row"} type="button" onClick={() => onEnterRoom(room)} key={room.id}>
             <img src={room.works[0]?.cover_url} alt={`${room.works[0]?.title ?? room.name} cover`} />
             <span className="room-row-copy"><strong>{room.name}</strong><small>Lineup locked · {room.works.length} works</small></span>
@@ -267,10 +246,7 @@ function HomeView({ roomsState, onEnterRoom, onRetry }: { roomsState: RoomsState
         ))}
       </section>
 
-      <section className="special-room">
-        <div><p className="kicker gold">SPECIAL ROOM</p><h2>Manga Culture Contribution Award</h2><p>Celebrate the Readers who keep hidden gems alive.</p></div>
-        <button type="button" className="ceremony-action">Enter the ceremony</button>
-      </section>
+      {specialRoom && <section className="special-room"><div><p className="kicker gold">SPECIAL ROOM · {formatDeadline(specialRoom.deadline)}</p><h2>{specialRoom.name}</h2><p>Support one of {specialRoom.works.length} participating teams. One wallet can send one Shout in this Room.</p></div><button type="button" className="ceremony-action" onClick={() => onEnterRoom(specialRoom)}>Enter the ceremony</button></section>}
     </main>
   );
 }
@@ -279,18 +255,17 @@ type RoomViewProps = {
   room: Room;
   work: RoomWork;
   selectedWorkId: string | null;
-  topThree: string[];
   projectionState: ProjectionState;
   onBack: () => void;
   onSelectWork: (id: string) => void;
   onOpenGroove: () => void;
-  onReviewBallot: () => void;
-  onToggleTopThree: () => void;
+  onToggleShelf: () => void;
+  inShelf: boolean;
 };
 
-function RoomView({ room, work, selectedWorkId, topThree, projectionState, onBack, onSelectWork, onOpenGroove, onReviewBallot, onToggleTopThree }: RoomViewProps) {
-  const inTopThree = topThree.includes(work.id);
-  const topThreeFull = topThree.length >= 3 && !inTopThree;
+function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelectWork, onOpenGroove, onToggleShelf, inShelf }: RoomViewProps) {
+  const events = projectionState.status === "ready" ? projectionState.projection.groove : [];
+  const isSpecial = room.room_type === "SPECIAL_TEAM";
   return (
     <main className="page room-page">
       <header className="room-header">
@@ -301,7 +276,7 @@ function RoomView({ room, work, selectedWorkId, topThree, projectionState, onBac
 
       <div className="room-layout">
         <aside className="lineup-panel" aria-labelledby="lineup-title">
-          <div className="panel-heading"><div><p className="kicker">LINEUP LOCKED</p><h2 id="lineup-title">Tonight's Lineup</h2></div><span>{room.works.length} works</span></div>
+          <div className="panel-heading"><div><p className="kicker">LINEUP LOCKED</p><h2 id="lineup-title">{isSpecial ? "Participating Teams" : "Tonight's Lineup"}</h2></div><span>{room.works.length} {isSpecial ? "teams" : "works"}</span></div>
           <div className="lineup-list">
             {room.works.map((item, index) => (
               <button className={item.id === selectedWorkId ? "lineup-item selected" : "lineup-item"} type="button" key={item.id} onClick={() => onSelectWork(item.id)}>
@@ -319,23 +294,22 @@ function RoomView({ room, work, selectedWorkId, topThree, projectionState, onBac
           <div className="work-copy">
             <p className="kicker">NOW IN THE GROOVE</p>
             <h1 id="work-title">{work.title}</h1>
-            <p>{work.chapter} · Activity pending</p>
-            <div className="room-facts"><span><UsersRound size={16} /> {projectionState.status === "ready" ? `${projectionState.events.length} confirmed event${projectionState.events.length === 1 ? "" : "s"}` : "Activity unavailable"}</span><span><Clock3 size={16} /> Closes {formatDeadline(room.deadline)}</span></div>
-            <a className="read-link" href={work.reading_url} target="_blank" rel="noreferrer"><BookOpen size={18} /> Read Official Chapter</a>
+            <p>{isSpecial ? "Hackathon participant" : work.chapter} · {projectionState.status === "ready" ? `${events.length} confirmed Shout${events.length === 1 ? "" : "s"}` : "Activity unavailable"}</p>
+            <div className="room-facts"><span><UsersRound size={16} /> One wallet, one Shout in this Room</span><span><Clock3 size={16} /> Closes {formatDeadline(room.deadline)}</span></div>
+            {!isSpecial && <a className="read-link" href={work.reading_url} target="_blank" rel="noreferrer"><BookOpen size={18} /> Read Official Chapter</a>}
           </div>
           <div className="work-actions">
             <button className="primary-action" type="button" onClick={onOpenGroove}>Osu! <MessageCircle size={20} /></button>
-            <button className={inTopThree ? "secondary-action active" : "secondary-action"} type="button" onClick={onToggleTopThree} disabled={topThreeFull}>{inTopThree ? "Remove from My Top 3" : topThreeFull ? "Top 3 is full" : "Add to My Top 3"}</button>
-            <button className="ballot-action" type="button" onClick={onReviewBallot}>Review Top 3 · {topThree.length}/3</button>
+            <button className={inShelf ? "secondary-action active" : "secondary-action"} type="button" onClick={onToggleShelf}>{inShelf ? "Remove from My Shelf" : "Add to My Shelf"}</button>
           </div>
         </section>
 
         <aside className="groove-panel" aria-labelledby="groove-title">
-          <div className="panel-heading"><div><p className="kicker">CONFIRMED ON HEDERA</p><h2 id="groove-title">Groove Wave</h2></div><span>{projectionState.status === "ready" ? projectionState.events.length : "—"}</span></div>
+          <div className="panel-heading"><div><p className="kicker">CONFIRMED ON HEDERA</p><h2 id="groove-title">Groove Wave</h2></div><span>{projectionState.status === "ready" ? events.length : "—"}</span></div>
           {projectionState.status === "loading" && <p className="dialog-note" role="status">Loading confirmed events...</p>}
           {projectionState.status === "error" && <p className="dialog-note" role="alert">Groove evidence unavailable.</p>}
-          {projectionState.status === "ready" && projectionState.events.length === 0 && <p className="dialog-note">No confirmed events yet.</p>}
-          {projectionState.status === "ready" && <div className="shout-feed">{projectionState.events.map((event) => <GrooveEvidence event={event} key={event.prepare_id} />)}</div>}
+          {projectionState.status === "ready" && events.length === 0 && <p className="dialog-note">No confirmed Shouts yet.</p>}
+          {projectionState.status === "ready" && <div className="shout-feed">{events.map((event) => <GrooveEvidence event={event} key={event.prepare_id} />)}</div>}
         </aside>
       </div>
     </main>
@@ -361,7 +335,7 @@ type GrooveDialogProps = {
   onReactionChange: (id: string) => void;
   onShoutChange: (value: string) => void;
   onSubmit: () => void;
-  state: "idle" | "connecting" | "preparing" | "approving" | "confirming" | "confirmed";
+  state: "idle" | "connecting" | "preparing" | "approving" | "confirming" | "confirmed" | "duplicate";
   error: string | null;
   evidence: Extract<GrooveStatus, { status: "CONFIRMED" }> | null;
 };
@@ -401,39 +375,25 @@ function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShou
           ))}
         </div>
         <label className="shout-field"><span>Shout</span><textarea value={shout} onChange={(event) => updateShout(event.target.value)} placeholder="Drop your post-chapter scream..." /><small>{[...shout].length}/200 · {shoutBytes}/600 UTF-8 bytes</small></label>
-        <button className="primary-action full" type="button" onClick={onSubmit} disabled={shoutBytes > 600 || !["idle", "confirmed"].includes(state)}>{state === "idle" ? "Send to the Groove" : state === "connecting" ? "Connect HashPack" : state === "preparing" ? "Preparing canonical event" : state === "approving" ? "Approve in HashPack" : state === "confirming" ? "Confirming on Mirror" : "Confirmed on Hedera"} <Sparkles size={20} /></button>
+        <button className="primary-action full" type="button" onClick={onSubmit} disabled={shoutBytes === 0 || shoutBytes > 600 || !["idle", "confirmed"].includes(state)}>{state === "idle" ? "Send my one Shout" : state === "connecting" ? "Connect HashPack" : state === "preparing" ? "Checking Room eligibility" : state === "approving" ? "Approve in HashPack" : state === "confirming" ? "Confirming on Mirror" : state === "duplicate" ? "Already Shouted in this Room" : "Confirmed on Hedera"} <Sparkles size={20} /></button>
         {error && <p className="dialog-note" role="alert">{error}</p>}
         {evidence && <p className="dialog-note" role="status">Sequence #{evidence.sequence_number} · {evidence.message_bytes} bytes · {evidence.payer_account_id}</p>}
-        <p className="dialog-note">Reaction and Shout do not change your formal ballot.</p>
+        <p className="dialog-note">One wallet can send one confirmed Shout in this Room. This demo rule is not proof of one human, one vote.</p>
       </section>
     </div>
   );
 }
 
-function BallotDialog({ topThree, works, state, error, capability, onCast, onClose }: { topThree: string[]; works: RoomWork[]; state: "idle" | "connecting" | "world" | "preparing" | "approving" | "confirming" | "granted"; error: string | null; capability: BallotCapability | null; onCast: () => void; onClose: () => void }) {
-  const rankedWorks = topThree.map((id) => works.find((work) => work.id === id)).filter((work): work is RoomWork => Boolean(work));
-  return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="ballot-dialog" role="dialog" aria-modal="true" aria-labelledby="ballot-title" onMouseDown={(event) => event.stopPropagation()}>
-        <header><div><p className="kicker">FORMAL BALLOT</p><h2 id="ballot-title">Review your Top 3</h2></div><button className="icon-button" type="button" onClick={onClose} aria-label="Close ballot review"><X /></button></header>
-        <ol className="ballot-ranking">{rankedWorks.map((work, index) => <li key={work.id}><span>{index + 1}</span><img src={work.cover_url} alt="" /><div><strong>{work.title}</strong><small>{work.chapter}</small></div></li>)}</ol>
-        {rankedWorks.length < 3 && <p className="ballot-warning">Choose {3 - rankedWorks.length} more work{rankedWorks.length === 2 ? "" : "s"} before casting your ballot.</p>}
-        <div className="trust-strip"><span>Production World proof</span><span>Room-unique capability</span><span>HashPack payer bound</span></div>
-        <button className="primary-action full" type="button" disabled={rankedWorks.length !== 3 || !["idle", "granted"].includes(state)} onClick={onCast}>{state === "idle" ? "Cast verified ballot" : state === "connecting" ? "Connect HashPack" : state === "world" ? "Verify in World App" : state === "preparing" ? "Binding proof to ballot" : state === "approving" ? "Approve ballot in HashPack" : state === "confirming" ? "Confirming on Mirror" : "Capability granted"}</button>
-        {error && <p className="dialog-note" role="alert">{error}</p>}
-        {capability && <p className="dialog-note" role="status">Sequence #{capability.sequence_number} · {capability.account_id}<br />{capability.event_hash}</p>}
-        <p className="dialog-note">Formal success appears only after World verification, wallet signature, Mirror exact match, and Room uniqueness checks.</p>
-      </section>
-    </div>
-  );
-}
-
-function RankingsView({ works, roomName }: { works: RoomWork[]; roomName?: string }) {
+function RankingsView({ rooms, selectedRoom, projectionState, onSelectRoom }: { rooms: Room[]; selectedRoom: Room | null; projectionState: ProjectionState; onSelectRoom: (room: Room) => void }) {
+  const ranking = projectionState.status === "ready" ? projectionState.projection.ranking : [];
   return (
     <main className="page collection-page">
-      <header className="collection-header"><p className="kicker">ROOM RESULT</p><h1>Rankings</h1><p>Results become formal only after the Room is sealed and public verification completes.</p></header>
-      <section className="pending-result"><Trophy /><div><p className="kicker gold">SEAL PENDING</p><h2>{roomName ?? "No Room selected"}</h2><p>Live standings are hidden until the immutable cutoff is confirmed.</p></div><span>Pending</span></section>
-      <section className="ranking-preview" aria-labelledby="ranking-preview-title"><div className="section-heading"><div><p className="kicker">PREVIEW</p><h2 id="ranking-preview-title">Groove, not final votes</h2></div></div>{works.slice(0,3).map((work,index)=><div className="ranking-row" key={work.id}><strong>{index+1}</strong><img src={work.cover_url} alt="" /><span><b>{work.title}</b><small>Activity pending</small></span><em>Pending</em></div>)}</section>
+      <header className="collection-header"><p className="kicker">ONE WALLET · ONE SHOUT</p><h1>Rankings</h1><p>Each Room has an independent ranking built from Mirror-confirmed Shouts. This is a wallet-based demo vote.</p></header>
+      <label className="room-selector"><span>Room</span><select value={selectedRoom?.id ?? ""} onChange={(event) => { const room = rooms.find((candidate) => candidate.id === event.target.value); if (room) onSelectRoom(room); }}>{rooms.map((room) => <option value={room.id} key={room.id}>{room.name}</option>)}</select></label>
+      {selectedRoom && <section className="pending-result"><Trophy /><div><p className="kicker gold">{selectedRoom.phase === "LIVE" ? "PROVISIONAL" : selectedRoom.phase}</p><h2>{selectedRoom.name}</h2><p>{projectionState.status === "ready" ? `${projectionState.projection.confirmed_shout_count} confirmed Shout${projectionState.projection.confirmed_shout_count === 1 ? "" : "s"}` : "Ranking evidence is loading."}</p></div><span>{selectedRoom.phase}</span></section>}
+      {projectionState.status === "error" && <p className="room-list-status" role="alert">Ranking unavailable.</p>}
+      {projectionState.status === "loading" && <p className="room-list-status" role="status">Loading Room ranking...</p>}
+      {selectedRoom && projectionState.status === "ready" && <section className="ranking-preview" aria-labelledby="ranking-preview-title"><div className="section-heading"><div><p className="kicker">ROOM RESULT</p><h2 id="ranking-preview-title">Confirmed Shouts</h2></div></div>{ranking.map((entry) => { const work = selectedRoom.works.find((candidate) => candidate.id === entry.work_id); if (!work) return null; return <div className="ranking-row" key={work.id}><strong>{entry.rank}</strong><img src={work.cover_url} alt="" /><span><b>{work.title}</b><small>{entry.shout_count} Shout{entry.shout_count === 1 ? "" : "s"}</small></span><em>{entry.tied ? "Tied" : selectedRoom.phase === "LIVE" ? "Provisional" : "Final"}</em></div>;})}</section>}
     </main>
   );
 }
@@ -444,48 +404,16 @@ function ShelfView({ topThree, works }: { topThree: string[]; works: RoomWork[] 
     <main className="page collection-page">
       <header className="collection-header"><p className="kicker">MY OSHIKATSU</p><h1>My Shelf</h1><p>Your current Top 3 stays editable until the Room deadline.</p></header>
       <section className="shelf-grid" aria-label="My Top 3">{[0,1,2].map((slot)=>{const work=selected[slot];return <article className="shelf-slot" key={slot}>{work?<><img src={work.cover_url} alt={`${work.title} cover`} /><span>#{slot+1}</span><strong>{work.title}</strong><small>{work.chapter}</small></>:<div className="empty-cover"><BookOpen /></div>}</article>})}</section>
-      <section className="history-strip"><p className="kicker">ROOM HISTORY</p><h2>Tonight is your first shared Room</h2><p>Verified ballot history will appear after capability is granted.</p></section>
+      <section className="history-strip"><p className="kicker">LOCAL SHELF</p><h2>Your picks stay on this device</h2><p>This demo does not publish Shelf choices as votes. Only a confirmed Shout affects a Room ranking.</p></section>
     </main>
   );
 }
 
-function ProfileView({ onRoomCreated }: { onRoomCreated: () => void }) {
-  const [name, setName] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [createdRoom, setCreatedRoom] = useState<Room | null>(null);
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setCreating(true);
-    setError(null);
-    setCreatedRoom(null);
-    try {
-      const room = await createRoom({
-        name,
-        opens_at: new Date().toISOString(),
-        deadline: new Date(deadline).toISOString(),
-        topic_id: "0.0.9745676",
-        works: [
-          { id: "work-one", title: "First Work", chapter: "Chapter 1", cover_url: `${window.location.origin}/assets/sample01.webp`, hero_url: null, reading_url: "https://www.webtoons.com/" },
-          { id: "work-two", title: "Second Work", chapter: "Chapter 1", cover_url: `${window.location.origin}/assets/sample02.webp`, hero_url: null, reading_url: "https://www.webtoons.com/" },
-        ],
-      });
-      setCreatedRoom(room);
-      onRoomCreated();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Room creation failed.");
-    } finally {
-      setCreating(false);
-    }
-  }
-
+function ProfileView() {
   return (
     <main className="page collection-page">
-      <header className="profile-hero"><div className="profile-avatar">?</div><div><p className="kicker">WALLET IDENTITY</p><h1>Not connected</h1><p>Identity and public activity appear only after verified wallet evidence.</p></div></header>
-      <section className="badge-grid"><article><Medal /><strong>Rooms Joined</strong><span>—</span></article><article><Sparkles /><strong>Confirmed Reactions</strong><span>—</span></article><article><LibraryBig /><strong>Works Shelved</strong><span>Local</span></article></section>
-      <section className="create-room"><p className="kicker">HOST A SHARED MOMENT</p><h2>Create a Room</h2><p>This creates a durable Room manifest with two starter works on Hedera testnet topic 0.0.9745676.</p><form onSubmit={(event) => void submit(event)}><label>Room name<input required minLength={3} maxLength={80} value={name} onChange={(event) => setName(event.target.value)} placeholder="Friday Reader Night" /></label><label>Deadline<input required type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} /></label><button className="primary-action" type="submit" disabled={creating}>{creating ? "Creating durable Room" : "Create Room"}</button></form>{error && <p role="alert">{error}</p>}{createdRoom && <p role="status">Created {createdRoom.id}<br />Manifest {createdRoom.manifest_hash}</p>}</section>
+      <header className="profile-hero"><div className="profile-avatar">?</div><div><p className="kicker">PROFILE</p><h1>No public profile yet</h1><p>This demo does not publish wallet identity, badges, participation totals, or personal activity.</p></div></header>
+      <section className="profile-empty"><UserRound /><div><p className="kicker">HONEST EMPTY STATE</p><h2>Your Shouts remain Room activity</h2><p>Connect HashPack only when sending a Shout. A personal history and verified achievements are outside this demo scope.</p></div></section>
     </main>
   );
 }

@@ -1,0 +1,25 @@
+{
+  "name": "Hackathon Team Support Room",
+  "room_type": "SPECIAL_TEAM",
+  "opens_at": "2026-07-25T00:00:00.000Z",
+  "deadline": "2026-10-25T23:59:59.000Z",
+  "topic_id": "0.0.9745676",
+  "works": [
+    {
+      "id": "oshikatsu-team",
+      "title": "Oshikatsu Team",
+      "chapter": "User-facing demo",
+      "cover_url": "https://oshikatsu-reader-lisbon26.web.app/assets/sample01.webp",
+      "hero_url": "https://oshikatsu-reader-lisbon26.web.app/assets/room-stage.webp",
+      "reading_url": "https://github.com/rtree/oshikatsu/issues/19"
+    },
+    {
+      "id": "issue-18-team",
+      "title": "Issue #18 Team",
+      "chapter": "Protocol evidence",
+      "cover_url": "https://oshikatsu-reader-lisbon26.web.app/assets/sample04.webp",
+      "hero_url": "https://oshikatsu-reader-lisbon26.web.app/assets/room-stage.webp",
+      "reading_url": "https://github.com/rtree/oshikatsu/issues/18"
+    }
+  ]
+}

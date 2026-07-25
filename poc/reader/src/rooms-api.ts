@@ -77,7 +77,9 @@ export async function fetchRoomProjection(roomId: string, signal?: AbortSignal) 
   });
   if (!response.ok) throw new Error(`Projection service returned HTTP ${response.status}.`);
   const projection = await response.json() as RoomProjection;
-  if (!isRoom(projection.room) || !Array.isArray(projection.groove)) {
+  if (!isRoom(projection.room) || !Array.isArray(projection.groove) || !Array.isArray(projection.ranking) ||
+    !projection.ranking.every((entry) => Number.isInteger(entry.rank) && typeof entry.work_id === "string" && Number.isInteger(entry.shout_count) && typeof entry.tied === "boolean") ||
+    !Number.isInteger(projection.confirmed_shout_count)) {
     throw new Error("Projection service returned an invalid response.");
   }
   return projection;

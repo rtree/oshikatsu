@@ -62,11 +62,22 @@ async function waitForAccount(walletProvider: HederaProvider) {
 export async function requireHashPackAccount() {
   const wallet = await getWallet();
   let account = accountFromProvider(wallet.provider);
+  if (account) {
+    void wallet.provider.rpcProviders;
+    if (!wallet.provider.nativeProvider) {
+      await wallet.provider.disconnect();
+      account = null;
+    }
+  }
   if (!account) {
     void wallet.appKit.open({ view: "Connect" });
     account = await waitForAccount(wallet.provider);
   }
   if (!account) throw new Error("Connect a HashPack testnet account, then press Send again.");
+  void wallet.provider.rpcProviders;
+  if (!wallet.provider.nativeProvider) {
+    throw new Error("HashPack did not initialize the Hedera provider. Reconnect and try again.");
+  }
   return { accountId: account.slice("hedera:testnet:".length), signerAccountId: account };
 }
 

@@ -13,6 +13,7 @@ export type GroovePreparation = {
 export type GrooveStatus =
   | { status: "PENDING" }
   | { status: "INVALID"; reason: string }
+  | { status: "DUPLICATE"; reason: "ONE_SHOUT_PER_ROOM"; accepted_sequence_number: number }
   | {
       status: "CONFIRMED";
       transaction_id: string;
@@ -56,6 +57,7 @@ export async function waitForGrooveConfirmation(preparationId: string, transacti
     );
     if (status.status === "CONFIRMED") return status;
     if (status.status === "INVALID") throw new Error(`Mirror rejected the event: ${status.reason}.`);
+    if (status.status === "DUPLICATE") throw new Error("DUPLICATE_SHOUT");
     await new Promise((resolve) => setTimeout(resolve, 750));
   }
   throw new Error("Mirror confirmation timed out. The event is not yet formal.");
