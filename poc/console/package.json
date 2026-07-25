@@ -19,6 +19,7 @@
     "spike:hcs-boundary": "node scripts/hcs-boundary-spike.mjs",
     "acceptance:production": "node scripts/acceptance-production.mjs",
     "admin": "node scripts/admin.mjs",
+    "capture:world": "node scripts/capture-world-production-evidence.mjs",
     "security:check": "node scripts/check-ai-boundary.mjs",
     "test": "npm run test --workspaces --if-present"
   }

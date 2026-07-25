@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  decodeBallotEventV2,
   decodeBallotEvent,
   decodeGrooveEvent,
+  decodeWorldArtifact,
   domainHash,
+  encodeBallotEventV2,
   encodeBallotEvent,
   encodeGrooveEvent,
+  encodeWorldArtifact,
+  MAX_ARTIFACT_REFERENCE_BYTES,
   MAX_EVENT_BYTES,
+  worldArtifactSha256,
+  type WorldArtifactV1,
 } from "../src/index.js";
 
 const base = {
@@ -57,4 +64,66 @@ test("Ballot binds ordered Top 3, payer, Room manifest, and World evidence", () 
   assert.throws(() => encodeBallotEvent({ ...input, nomineeIds: ["level-up", "level-up", "divine"] }), /three distinct/);
   const text = new TextDecoder().decode(bytes);
   assert.throws(() => decodeBallotEvent(new TextEncoder().encode(text.replace('"e":', '"x":true,"e":'))), /unknown/);
+});
+
+const worldArtifact: WorldArtifactV1 = {
+  schema: "oshikatsu-world-artifact-v1",
+  room_id: "lisbon-main",
+  manifest_hash: "4".repeat(64),
+  nominee_ids: ["level-up", "cadet", "divine"],
+  account_id: "0.0.9706029",
+  action: "oshikatsu-room:lisbon-main",
+  signal: "oshikatsu:ballot:v2:fixture",
+  anchor: { block_number: "32841860", block_hash: `0x${"a".repeat(64)}`, block_timestamp: "1785000000" },
+  proof: {
+    protocol_version: "4.0",
+    nonce: "fixture-nonce",
+    action: "oshikatsu-room:lisbon-main",
+    responses: [{ identifier: "proof_of_human", signal_hash: "fixture-signal-hash", proof: ["1", "2", "3", "4", "5"], nullifier: "fixture-nullifier", issuer_schema_id: 1, expires_at_min: 123456 }],
+    user_presence_completed: true,
+    environment: "production",
+  },
+};
+
+test("World artifact canonical bytes and raw SHA-256 are stable", () => {
+  const bytes = encodeWorldArtifact(worldArtifact);
+  assert.deepEqual(decodeWorldArtifact(bytes), worldArtifact);
+  assert.equal(worldArtifactSha256(bytes), "0c59c1bac98b6e55f87d858e5aff6a93ec8bb38694b22176c95bc7c34cc1b34c");
+  const reordered = new TextEncoder().encode(JSON.stringify({ room_id: worldArtifact.room_id, ...worldArtifact }));
+  assert.throws(() => decodeWorldArtifact(reordered), /not canonical/);
+  const unknown = new TextEncoder().encode(new TextDecoder().decode(bytes).replace('"anchor":{', '"anchor":{"unknown":true,'));
+  assert.throws(() => decodeWorldArtifact(unknown), /unknown/);
+});
+
+test("Ballot v2 commits artifact bytes, immutable reference, and World anchor", () => {
+  const input = {
+    ballotId: "ballot-0002",
+    roomId: "lisbon-main",
+    manifestHash: "4".repeat(64),
+    nomineeIds: ["level-up", "cadet", "divine"] as [string, string, string],
+    accountId: "0.0.9706029",
+    artifactHash: worldArtifactSha256(encodeWorldArtifact(worldArtifact)),
+    artifactReference: "https://storage.googleapis.com/o/a?generation=1",
+    worldBlockNumber: "32841860",
+    worldBlockHash: `0x${"a".repeat(64)}`,
+  };
+  const bytes = encodeBallotEventV2(input);
+  const event = decodeBallotEventV2(bytes);
+  assert.equal(event.e, "8427df09eb157879bcac9c46c02ca5e9e30ff8f3dc81b9a191d57150bbf24723");
+  assert.equal(event.d, input.artifactHash);
+  assert.throws(() => decodeBallotEventV2(new TextEncoder().encode(new TextDecoder().decode(bytes).replace(input.artifactHash, "0".repeat(64)))), /hash is invalid/);
+});
+
+test("Ballot v2 enforces reference and 900-byte boundaries", () => {
+  const baseV2 = {
+    ballotId: "b".repeat(64), roomId: "r".repeat(64), manifestHash: "4".repeat(64),
+    nomineeIds: ["a".repeat(64), "b".repeat(64), "c".repeat(64)] as [string,string,string],
+    accountId: `0.0.${"9".repeat(20)}`, artifactHash: "d".repeat(64),
+    worldBlockNumber: "99999999999999999999", worldBlockHash: `0x${"e".repeat(64)}`,
+  };
+  const reference = `https://x/${"u".repeat(MAX_ARTIFACT_REFERENCE_BYTES - "https://x/".length)}`;
+  const bytes = encodeBallotEventV2({ ...baseV2, artifactReference: reference });
+  assert.ok(bytes.length <= MAX_EVENT_BYTES, `worst-case Ballot v2 is ${bytes.length} bytes`);
+  assert.throws(() => encodeBallotEventV2({ ...baseV2, artifactReference: `${reference}x` }), /180 bytes/);
+  assert.throws(() => decodeBallotEventV2(new Uint8Array(MAX_EVENT_BYTES + 1)), /1-900/);
 });

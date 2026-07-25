@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 export const MAX_EVENT_BYTES = 900;
 export const MAX_SHOUT_BYTES = 600;
 export const MAX_SHOUT_CODE_POINTS = 200;
+export const MAX_ARTIFACT_REFERENCE_BYTES = 180;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -66,6 +67,42 @@ export type BallotEvent = {
   a: string;
   w: string;
   e: string;
+};
+
+export type WorldArtifactV1 = {
+  schema: "oshikatsu-world-artifact-v1";
+  room_id: string;
+  manifest_hash: string;
+  nominee_ids: [string, string, string];
+  account_id: string;
+  action: string;
+  signal: string;
+  anchor: { block_number: string; block_hash: string; block_timestamp: string };
+  proof: {
+    protocol_version: "4.0";
+    nonce: string;
+    action: string;
+    responses: [{ identifier: "proof_of_human"; signal_hash: string; proof: [string, string, string, string, string]; nullifier: string; issuer_schema_id: 1; expires_at_min: number }];
+    user_presence_completed: boolean;
+    environment: "production";
+  };
+};
+
+export type BallotEventV2Input = {
+  ballotId: string;
+  roomId: string;
+  manifestHash: string;
+  nomineeIds: [string, string, string];
+  accountId: string;
+  artifactHash: string;
+  artifactReference: string;
+  worldBlockNumber: string;
+  worldBlockHash: string;
+};
+
+export type BallotEventV2 = {
+  v: 2; t: "b"; r: string; i: string; m: string; n: [string, string, string]; a: string;
+  d: string; u: string; b: string; h: string; e: string;
 };
 
 function fail(message: string): never {
@@ -222,4 +259,89 @@ export function decodeBallotEvent(bytes: Uint8Array): BallotEvent {
   if (event.e !== value.e) fail("Event hash is invalid.");
   if (!Buffer.from(encodeBallotEvent(input)).equals(Buffer.from(bytes))) fail("Event JSON is not canonical.");
   return event;
+}
+
+function validateWorldArtifact(input: WorldArtifactV1) {
+  assertKeys(input as unknown as Record<string, unknown>, ["schema", "room_id", "manifest_hash", "nominee_ids", "account_id", "action", "signal", "anchor", "proof"]);
+  assertKeys(input.anchor as unknown as Record<string, unknown>, ["block_number", "block_hash", "block_timestamp"]);
+  assertKeys(input.proof as unknown as Record<string, unknown>, ["protocol_version", "nonce", "action", "responses", "user_presence_completed", "environment"]);
+  if (input.proof.responses.length !== 1) fail("World artifact requires exactly one proof response.");
+  assertKeys(input.proof.responses[0] as unknown as Record<string, unknown>, ["identifier", "signal_hash", "proof", "nullifier", "issuer_schema_id", "expires_at_min"]);
+  if (input.schema !== "oshikatsu-world-artifact-v1" || input.proof.protocol_version !== "4.0" || input.proof.environment !== "production" || input.proof.responses[0].identifier !== "proof_of_human" || input.proof.responses[0].issuer_schema_id !== 1 || input.proof.responses[0].proof.length !== 5) fail("World artifact proof shape is invalid.");
+  if (!ID_PATTERN.test(input.room_id) || !HASH_PATTERN.test(input.manifest_hash) || !ACCOUNT_PATTERN.test(input.account_id)) fail("World artifact binding is invalid.");
+  if (input.nominee_ids.some((id) => !ID_PATTERN.test(id)) || new Set(input.nominee_ids).size !== 3) fail("World artifact requires three distinct nominees.");
+  if (!/^(0|[1-9]\d*)$/.test(input.anchor.block_number) || !/^0x[0-9a-f]{64}$/.test(input.anchor.block_hash) || !/^(0|[1-9]\d*)$/.test(input.anchor.block_timestamp)) fail("World anchor is invalid.");
+  if (input.action !== input.proof.action) fail("World artifact action mismatch.");
+}
+
+export function encodeWorldArtifact(input: WorldArtifactV1) {
+  validateWorldArtifact(input);
+  const response = input.proof.responses[0];
+  return encoder.encode(canonicalJson({
+    schema: input.schema,
+    room_id: input.room_id,
+    manifest_hash: input.manifest_hash,
+    nominee_ids: input.nominee_ids,
+    account_id: input.account_id,
+    action: input.action,
+    signal: input.signal,
+    anchor: { block_number: input.anchor.block_number, block_hash: input.anchor.block_hash, block_timestamp: input.anchor.block_timestamp },
+    proof: {
+      protocol_version: input.proof.protocol_version,
+      nonce: input.proof.nonce,
+      action: input.proof.action,
+      responses: [{ identifier: response.identifier, signal_hash: response.signal_hash, proof: response.proof, nullifier: response.nullifier, issuer_schema_id: response.issuer_schema_id, expires_at_min: response.expires_at_min }],
+      user_presence_completed: input.proof.user_presence_completed,
+      environment: input.proof.environment,
+    },
+  }));
+}
+
+export function decodeWorldArtifact(bytes: Uint8Array): WorldArtifactV1 {
+  let value: unknown;
+  try { value = JSON.parse(decoder.decode(bytes)); } catch { return fail("World artifact is not strict UTF-8 JSON."); }
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail("World artifact must be an object.");
+  const artifact = value as WorldArtifactV1;
+  validateWorldArtifact(artifact);
+  if (!Buffer.from(encodeWorldArtifact(artifact)).equals(Buffer.from(bytes))) fail("World artifact JSON is not canonical.");
+  return artifact;
+}
+
+export function worldArtifactSha256(bytes: Uint8Array) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function validateBallotV2Input(input: BallotEventV2Input) {
+  if (!ID_PATTERN.test(input.roomId) || !ID_PATTERN.test(input.ballotId) || !ACCOUNT_PATTERN.test(input.accountId)) fail("Ballot v2 identity binding is invalid.");
+  if (![input.manifestHash, input.artifactHash].every((hash) => HASH_PATTERN.test(hash))) fail("Ballot v2 SHA-256 is invalid.");
+  if (input.nomineeIds.some((id) => !ID_PATTERN.test(id)) || new Set(input.nomineeIds).size !== 3) fail("Ballot v2 requires three distinct nominees.");
+  if (encoder.encode(input.artifactReference).length > MAX_ARTIFACT_REFERENCE_BYTES || !/^https:\/\//.test(input.artifactReference)) fail("Artifact reference must be an HTTPS URL of at most 180 bytes.");
+  if (!/^(0|[1-9]\d*)$/.test(input.worldBlockNumber) || !/^0x[0-9a-f]{64}$/.test(input.worldBlockHash)) fail("Ballot v2 World anchor is invalid.");
+}
+
+export function createBallotEventV2(input: BallotEventV2Input): BallotEventV2 {
+  validateBallotV2Input(input);
+  const body = { v: 2 as const, t: "b" as const, r: input.roomId, i: input.ballotId, m: input.manifestHash, n: input.nomineeIds, a: input.accountId, d: input.artifactHash, u: input.artifactReference, b: input.worldBlockNumber, h: input.worldBlockHash };
+  return { ...body, e: domainHash("oshikatsu:ballot:v2", body) };
+}
+
+export function encodeBallotEventV2(input: BallotEventV2Input) {
+  const bytes = encoder.encode(canonicalJson(createBallotEventV2(input)));
+  if (bytes.length > MAX_EVENT_BYTES) fail(`Event is ${bytes.length} bytes; maximum is 900.`);
+  return bytes;
+}
+
+export function decodeBallotEventV2(bytes: Uint8Array): BallotEventV2 {
+  if (bytes.length === 0 || bytes.length > MAX_EVENT_BYTES) fail("Event must contain 1-900 UTF-8 bytes.");
+  let value: unknown;
+  try { value = JSON.parse(decoder.decode(bytes)); } catch { return fail("Event is not strict UTF-8 JSON."); }
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail("Event must be an object.");
+  const event = value as Record<string, unknown>;
+  assertKeys(event, ["v", "t", "r", "i", "m", "n", "a", "d", "u", "b", "h", "e"]);
+  if (event.v !== 2 || event.t !== "b" || !Array.isArray(event.n) || event.n.length !== 3 || typeof event.e !== "string") fail("Ballot v2 shape is invalid.");
+  const input: BallotEventV2Input = { roomId: String(event.r), ballotId: String(event.i), manifestHash: String(event.m), nomineeIds: event.n.map(String) as [string,string,string], accountId: String(event.a), artifactHash: String(event.d), artifactReference: String(event.u), worldBlockNumber: String(event.b), worldBlockHash: String(event.h) };
+  const canonical = createBallotEventV2(input);
+  if (canonical.e !== event.e) fail("Event hash is invalid.");
+  if (!Buffer.from(encodeBallotEventV2(input)).equals(Buffer.from(bytes))) fail("Event JSON is not canonical.");
+  return canonical;
 }

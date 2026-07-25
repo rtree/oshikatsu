@@ -1,0 +1,7 @@
+{
+  "room_id": "lisbon-main",
+  "account_id": "0.0.9706029",
+  "nominee_ids": ["level-up", "cadet", "divine"],
+  "action": "oshikatsu-room:lisbon-main",
+  "signal": "replace-with-the-exact-request-signal"
+}
