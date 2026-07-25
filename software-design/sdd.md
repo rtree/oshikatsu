@@ -490,171 +490,264 @@ Reader Appは「黒い画面に紫を置く」のではなく、暗転したラ�
 
 # Part III: API Build + Headless PoC Testing
 
-画面定義から、利用者の操作、入力データ、状態変化、生成データ、返却状態を抽出する。Backend APIはこのユースケースを実行し、HederaとWorldへ実際の読み書きと検証を行う。Headless clientはAPIとpublic networkを操作し、JSON、table、logで結果を観測する。
+Part IIをproduct behaviorの正本とし、Part IIIは実装順、外部依存の実証、完了証拠だけを定める。日々の作業状態はGitHub Issue、実ネットワークの結果はrun artifactに置き、この文書へ重複して記録しない。
 
-## API Build
+最初に証明するvertical sliceは次である。
 
-### Use CaseとData Contract
+```text
+fixed Room manifest
+    -> production World ID v4 Proof of Human
+    -> HashPack-signed initial ballot on Hedera testnet
+    -> Mirror Node chunk reconstruction
+    -> finalized historical World verification
+    -> Room capability
+    -> update / withdraw / re-update
+    -> deterministic result
+    -> independent public replay with the same result hash
+```
 
-- [ ] 画面定義ごとに必要なread modelを定義する
-- [ ] 利用者が入力または選択するcommand dataを定義する
-- [ ] commandが生成するdomain eventとstate transitionを定義する
-- [ ] command resultにSUCCESS、PENDING、INVALID、UNVERIFIABLEを定義する
-- [ ] Room、Nominee、Groove、Ballot、World Proof、Capability、Result、Achievementのcanonical schemaを定義する
-- [ ] canonical JSON、hash、protocol versionの規則を定義する
+このsliceが完了するまで、Grooveの高度な集計、Achievement delivery、AI要約、推薦、複数Room運用、Reader Appのvisual実装は後回しにする。
 
-### Room lifecycle
+## Source and implementation policy
 
-- [ ] publication、issue、Nomination Window、opensAt、deadline、ballot rule、reaction vocabulary、achievement policyからRoom manifestを生成する
-- [ ] Room固有World actionをmanifestから導出する
-- [ ] manifest、event stream、deadline、authorityをpublic artifactとしてcommitする
-- [ ] NOMINATION、OPEN、DEADLINE、SEALED、FINALIZEDのphaseをHedera consensus timeから導出する
-- [ ] Room一覧、Room詳細、phase、countdown、public artifact referenceを取得できるようにする
+- Hedera実装は、Hedera MCPの公式documentationとOpenAPI、workspaceに固定したHedera skill、Context7の順に参照する。
+- TypeScriptのHedera SDKは`@hiero-ledger/sdk`を使う。
+- 公式sampleを最小の実ネットワークscriptとして動かしてから、Oshikatsuのabstractionへ移す。
+- skillのsampleは実装patternとして使うが、network limitとprotocol semanticsは公式documentationを正とする。HCS chunkは1件1,024 bytesを上限とする。
+- World IDとWorld Chainも公式documentation、official repository、実production proofの順で確認し、推測したfield mappingを実装しない。
 
-### Nomination
+## Stop/go gates
 
-- [ ] Readerが一作品をNomineeとして提出する処理を実装する
-- [ ] Nominee eventをHedera Walletのpayerへ結びつける
-- [ ] logical event completion timestampでNomination Windowを判定する
-- [ ] 同一作品の提案をcanonical work identityでgroupingする
-- [ ] opensAt時点のcandidate setとcandidate-set hashを導出する
-- [ ] Nominee streamとcandidate setを公開データから再構成する
+以下はAPI全体を作る前に通す。失敗した場合は下流実装を増やさず、Part Iのprotocolを更新する。
 
-### Groove
+### Gate 0-A: World v4 ballot binding
 
-- [ ] work、stamp、shout、Hedera accountを束ねたGroove eventを実装する
-- [ ] Groove eventをHCSへ書き込む
-- [ ] HCS messageをMirror Nodeから取得しlogical eventへ再構成する
-- [ ] workごとのGrooveWave、emotion distribution、shout stream、unique human countを導出する
-- [ ] Room全体のlive summaryを取得できるようにする
+productionの`proofOfHuman`、`allow_legacy_proofs=false`で次を実証する。
 
-### World Proofと初回Ballot
+1. 固定Room、固定ranking、固定Hedera accountからsignalを作る。
+2. IDKit resultの`signal_hash`が公式`hashSignal(signal)`と一致し、`0x0`ではないことを確認する。
+3. Developer Portal verifyとcanonical `WorldIDVerifier.verify`の両方で成功させる。
+4. signal、action、nonce、proofを個別に変更し、`INVALID`になることを確認する。
 
-- [ ] Room manifestからWorld v4 actionTextを導出する
-- [ ] action、nonce、createdAt、expiresAtを含むRP request signatureを生成する
-- [ ] `proofOfHuman` presetと`allow_legacy_proofs=false`を使うproof request dataを生成する
-- [ ] Room、ranking、deadline、Hedera accountからballotHashとWorld signalを生成する
-- [ ] World proof、public inputs、anchor block referenceを受け取る
-- [ ] canonical WorldIDVerifierでproofをpreflight verificationする
-- [ ] anchor blockの鮮度、canonical hash、finalityを追跡する
-- [ ] raw World proofを含む初回ballot envelopeを生成する
-- [ ] ReaderのNative Wallet署名で初回ballotをHCSへ直接投稿する
-- [ ] Mirror Nodeからchunkを完全に再構成する
-- [ ] historical World stateでproofを第三者再検証する
-- [ ] World nullifierごとの最初のVALID ballotへRoom capabilityを付与する
-- [ ] 初回ballotの状態をSUBMITTED、REASSEMBLED、WAITING_WORLD_FINALITY、VALID、INVALID、UNVERIFIABLE、CAPABILITY_GRANTED、NULLIFIER_CONFLICTとして取得できるようにする
+**GO:** custom signalがraw proofへ入り、historical verifier callでballot bindingを再現できる。
 
-### Ballot updateとrevoke
+**STOP:** custom signalがproofへ入らない、またはPortal以外で必要inputを再構成できない。この場合、現行の「proofがballotを束縛する」設計を変更する。
 
-- [ ] capability、Room、ranking、deadline、Hedera accountを束ねたupdate eventを実装する
-- [ ] capability、Room、deadline、Hedera accountを束ねたrevoke eventを実装する
-- [ ] Native Wallet署名でupdateとrevokeをHCSへ直接投稿する
-- [ ] capability ownerとMirror payerの一致を検証する
-- [ ] logical event completion timestampで投票Windowを判定する
-- [ ] capabilityごとにdeadline以前の最大HCS sequenceをcurrent intentとして導出する
-- [ ] current intentと全履歴を取得できるようにする
+### Gate 0-B: World v4 Room uniqueness
 
-### ResultとAchievement
+同じOrb-verified humanについて、同じRP/actionでfresh nonceを使う複数回のproof requestを行う。
 
-- [ ] candidate set、capability、current intent、point ruleからrankingを決定論的に計算する
-- [ ] accepted、revoked、invalid、unverifiable、nullifier conflictを集計する
-- [ ] manifest deadlineとcutoff sequenceをresultへ含める
-- [ ] 同じpublic dataからresult hashを再計算する
-- [ ] result commitmentをHederaへ書き込む
-- [ ] 🥇、💎、🔥、✏️の対象accountと根拠eventを生成する
-- [ ] Achievementのmint、association、claim状態を取得できるようにする
+| Attempt | Action | Signal | 観測するもの |
+| --- | --- | --- | --- |
+| A | 同じ | 同じ | baseline nullifier |
+| B | 同じ | 同じ | 再発行可否とnullifier |
+| C | 同じ | 変更 | 再発行可否とnullifier |
+| D | 別Room | 同じ | nullifierがRoom間で分離するか |
 
-### Public replay
+**GO:** 同じRoomの2件目が拒否される、または同じhumanをHCS foldで一意に識別できる安定値が得られる。
 
-- [ ] manifestと全eventをMirror Nodeから取得する
-- [ ] HCS chunkをlogical eventへ再構成する
-- [ ] Hedera payer、consensus timestamp、sequenceを検証する
-- [ ] World anchorを複数archive providerで照合する
-- [ ] historical WorldIDVerifier callを再実行する
-- [ ] Room capability、current intent、ranking、Achievement対象を最初から再計算する
-- [ ] Backend projectionとpublic replay resultの一致を検証する
+**STOP:** 同じRoomでfreshかつ独立した利用可能nullifierを複数生成できる。v4 nullifierを「human + RP + actionの安定ID」と仮定せず、sessionまたは別のcapability設計を検討する。
 
-## Headless PoC Client
+### Gate 0-C: HashPack wallet-signed chunking
 
-Headless clientは、Backend APIとpublic networkを操作する薄いcommand-line clientとする。Human approvalが必要な操作ではWorld AppとNative Walletへhandoffし、承認結果を待って処理を継続する。
+HashPack実機でHedera testnetのopen-submit topicへ、1,023、1,024、1,025 bytesと実際のproof envelope相当サイズを投稿する。
 
-### Command set
+**確認事項:** approval回数、全chunkのpayer、transaction ID、`initial_transaction_id`、chunk number/total、sequence、consensus timestamp、途中拒否時の状態。
 
-- [ ] `room create`：manifest inputからRoomを作成しpublic artifactを表示する
-- [ ] `room list`：Room一覧とphaseをtable表示する
-- [ ] `room show`：Room manifest、candidate set、deadline、artifact referenceをJSON表示する
-- [ ] `room watch`：phase、Groove、verification queue、provisional rankingを継続表示する
-- [ ] `nominee add`：work dataを入力しWallet署名済みNominee eventを投稿する
-- [ ] `nominee list`：Nominee streamとcandidate-set hashを表示する
-- [ ] `groove post`：work、stamp、shoutを入力しGroove eventを投稿する
-- [ ] `groove show`：workごとのGrooveWaveを表示する
-- [ ] `proof request`：RoomとballotからWorld connector URIとproof request summaryを表示する
-- [ ] `ballot submit`：World proofとWallet署名を経て初回ballotを投稿する
-- [ ] `ballot status`：初回ballotのverification stateと根拠を表示する
-- [ ] `ballot update`：capabilityを使ってrankingを更新する
-- [ ] `ballot revoke`：capabilityのcurrent intentをrevokeへ更新する
-- [ ] `ballot history`：HCS順の全intentとcurrent intentを表示する
-- [ ] `result calculate`：deadline時点のrankingをpublic dataから計算する
-- [ ] `result commit`：result hashをHederaへcommitする
-- [ ] `achievement plan`：対象accountと根拠eventを表示する
-- [ ] `achievement deliver`：Achievement deliveryを実行し状態を表示する
-- [ ] `replay room`：Room全体をpublic sourceから再構成し検証reportを出力する
+**GO:** 全chunkを同一accountが署名・支払いし、Mirror Nodeからlogical eventとcompletion timestampを再構成できる。
 
-### Output contract
+**STOP:** 一部chunkしか署名できない、partial failureを識別できない、またはproof envelopeが実用上投稿できない。application-level chunking、payload縮小、commitment方式のいずれかへprotocolを変更する。
 
-- [ ] 各commandにhuman-readable table outputを用意する
-- [ ] 各commandにmachine-readable JSON outputを用意する
-- [ ] transaction ID、topic ID、sequence、consensus timestamp、block hashを表示する
-- [ ] PENDING stateに次の観測対象と再確認時刻を表示する
-- [ ] INVALID stateに成立しなかった検証条件を表示する
-- [ ] UNVERIFIABLE stateに不足しているpublic evidenceを表示する
+### Gate 0-D: World historical replay
 
-## Headless PoC Scenarios
+有効なproduction proofを、選択したWorld blockで`eth_call`し、同じblock hashがfinalizedした後に2系統のarchive RPCから再実行する。
 
-### End-to-end
+**GO:** block hash、verifier dependency、call resultが一致し、改変proofはrevertする。
 
-- [ ] Room作成からcandidate-set確定までを実Hedera testnetで通す
-- [ ] Nominee追加を複数Hedera accountで通す
-- [ ] Groove投稿とMirror replayを通す
-- [ ] Orb-backed World ID v4 proof取得を実機で通す
-- [ ] raw proofを含む初回ballotをNative WalletからHCSへ投稿する
-- [ ] WAITING_WORLD_FINALITYからCAPABILITY_GRANTEDまでを通す
-- [ ] update、revoke、再updateを投稿し最大pre-deadline sequenceを確認する
-- [ ] deadline時点のresultとAchievement planを生成する
-- [ ] 独立replayで同じresult hashを生成する
+**STOP:** historical stateを再取得できない、provider間で一致しない、またはverification-critical stateをpublic artifactから特定できない。
 
-### Protocol states
+## Architecture boundaries
 
-- [ ] World anchor finality待ちを確認する
-- [ ] HCS chunkの一部だけを取得したREASSEMBLY_PENDINGを確認する
-- [ ] 改変したproofによるINVALIDを確認する
-- [ ] 改変したballotHashとsignalによるINVALIDを確認する
-- [ ] payload accountとMirror payerの不一致によるINVALIDを確認する
-- [ ] archive provider間のblock hash不一致によるUNVERIFIABLEを確認する
-- [ ] historical state取得停止によるUNVERIFIABLEを確認する
-- [ ] 同じnullifierの競合によるNULLIFIER_CONFLICTを確認する
-- [ ] deadline直前に開始し完了がdeadline後となるlogical eventを確認する
-- [ ] duplicate eventのidempotentなprojectionを確認する
-- [ ] result commitment後の再実行で同じresult hashを確認する
-- [ ] Achievement association待ちとclaim完了を確認する
+API、Headless client、Reader Appはprotocolを利用する側とし、public bytesや判定規則を定義しない。
 
-### External dependency states
+```text
+apps/api     apps/cli     apps/web
+         \          |          /
+            application use cases
+             /       |        \
+ protocol   projection   external adapters
+```
 
-- [ ] Hedera submission成功とMirror indexing待ちを分けて確認する
-- [ ] World RPC provider一系統の停止時に別providerでverificationを継続する
-- [ ] Mirror provider一系統の停止時に別providerでreplayを継続する
-- [ ] World App user rejectionをcommand resultとして確認する
-- [ ] Native Wallet user rejectionをcommand resultとして確認する
+| Package | Responsibility |
+| --- | --- |
+| `@oshikatsu/protocol` | versioned schema、canonical JSON、hash、action、signal、wire type、golden vector |
+| `@oshikatsu/domain` | Room phase、event validation、capability policy、latest intent、ranking、reason code |
+| `@oshikatsu/hedera` | topic作成、1,024-byte chunk、transaction構築、operatorまたはwallet submission |
+| `@oshikatsu/mirror` | REST pagination、raw schema validation、sequence gap、chunk再構成、payerとcompletion metadata |
+| `@oshikatsu/world-id` | manifest由来action、RP signature、IDKit request DTO、raw v4 result parse |
+| `@oshikatsu/world-chain` | multi-RPC block照合、historical `eth_call`、finality、proxy/dependency snapshot |
+| `@oshikatsu/projection` | public sourceからdecode、verify、fold、result/replay report生成 |
+| `@oshikatsu/wallet-handoff` | HashPackとWorld Appのbrowser handoff。秘密鍵を扱わない |
+| `apps/cli` | use caseを起動し、人間向けtableとmachine-readable JSONを返す |
 
-## Completion Gate
+protocol packageへHedera SDK、World SDK、Express、React、Firestoreの型を持ち込まない。projectionは同じpure foldを使ってよいが、CLI replayはAPIが保存した結果を信頼せず、public sourceから入力を取得する。
 
-- [ ] 画面定義の主要操作をHeadless commandから実行できる
-- [ ] APIがHedera testnetとWorld Chainへ実際の読み書きと検証を行う
-- [ ] formal effectをtransaction、consensus、proof、public replayで確認できる
-- [ ] 途中状態とprotocol stateをcommandから観測できる
-- [ ] projectionを初期化しpublic sourceからRoomを再構築できる
-- [ ] 独立replayがBackendと同じresult hashを生成する
-- [ ] testnet artifactと検証reportを保存する
+## Milestones
+
+各milestoneは0.5〜2日程度のIssueへ分割し、同時に着手するmilestoneを1つに制限する。完了はcode量ではなくacceptance evidenceで決める。
+
+### M0: Feasibility gates
+
+- Gate 0-Aから0-Dを実行する。
+- World action、signal、nullifier、anchor、wallet chunkingについて`GO`、`GO WITH CONSTRAINT`、`STOP`、`BLOCKED`を記録する。
+- `STOP`が1件でもあれば下流実装を始めず、protocol decisionを更新する。
+
+**Evidence:** sanitized IDKit result、RP context、World call input/result、Hedera transaction IDs、raw Mirror responses、decision report。
+
+### M1: Protocol kernel and CLI skeleton
+
+- canonical schemaとdomain-separated hashをversion 1として固定する。
+- bigint、Hedera consensus timestamp、hashはJavaScript numberにせずstring/bytesで扱う。
+- official RP signature/hash test vectorとOshikatsu golden vectorをtest fixtureにする。
+- `apps/cli`に`doctor`、`fixture verify`、`world spike`を用意する。
+
+**Gate:** 異なるprocessから同じfixtureを処理して、manifest hash、ballot hash、signal hashがbyte-for-byte一致する。
+
+### M2: Hedera testnet transport
+
+- 公式HCS sampleからopen-submit topic作成とmessage submitを通す。
+- Mirror RESTをsequence昇順でpaginateし、raw chunkを取得する。
+- `chunk_info.initial_transaction_id`、payer、number、totalを検証してlogical eventを再構成する。
+- missing、duplicate、conflicting、interleaved chunk fixtureを拒否する。
+
+**Gate:** 新しいprocessがAPI memoryを使わず、Mirror Nodeだけから同じmanifest bytes、payer、completion sequence/timestampを再構成する。
+
+### M3: Browser approval handoff
+
+- Headless CLIがshort-lived handoffを作り、browser URLまたはQRを表示する。
+- browserでHashPack Topic SubmitとWorld App requestを行い、CLIが公開statusをpollして再開する。
+- rejection、timeout、disconnect、partial submissionをterminal stateとして返す。
+
+**Gate:** HashPack実機でwallet-signed payloadをHedera testnetへ投稿し、connected accountとMirror payerが一致する。
+
+### M4: World production verification
+
+- backendでmanifestからactionを導出し、RP signing keyで300秒TTLのrequestを作る。
+- v4 raw resultを改変せずartifactへ保存し、normalized verifier inputを別に導出する。
+- preflight blockはOshikatsu側で選び、block number/hash/timestampを保存する。
+- 2 archive RPCでhistorical verificationとfinalityを追跡する。
+
+**Gate:** valid proof、tampered proof、provider unavailableをそれぞれ`VALID`、`INVALID`、`UNVERIFIABLE`へ分類できる。
+
+### M5: Initial ballot capability slice
+
+- fixed candidate setでinitial ballot envelopeを作る。
+- HashPackでraw proof込みmessageを投稿する。
+- `SUBMITTED -> REASSEMBLED -> WAITING_WORLD_FINALITY -> VALID -> CAPABILITY_GRANTED`を進める。
+- Gate 0-Bで確定したuniqueness semanticsに基づき競合を判定する。
+
+**Gate:** 1つのreal Room、1人のreal human、1つのHashPack accountについて、public evidenceだけで`CAPABILITY_GRANTED`を説明できる。
+
+### M6: Ballot lifecycle and deterministic result
+
+- update、withdraw、再updateをHCSへ投稿する。
+- deadline以前に完了した最大completion sequenceをcurrent intentにする。
+- deadlineを跨ぐchunk group、wrong payer、duplicate eventを拒否する。
+- fixed point ruleでresult hashを計算し、authority SEALへcommitする。
+
+**Gate:** API projectionとfresh CLI replayが同じcurrent intent、ranking、result hashを生成する。
+
+### M7: Cloud Run and durable projection
+
+- Cloud Run APIはattached service accountとADCを使う。
+- RP signing keyなどのsecretはSecret Managerから渡し、environment variableで使う場合はversionを固定する。
+- Firestoreはrebuild可能なprojection/checkpointに限定し、formal sourceにしない。
+- projectionを削除してMirror + World public evidenceから再構築するdrillを行う。
+
+**Gate:** fresh Cloud Run revisionとfresh CLIが同じRoomを再現し、secretがimage、browser bundle、log、artifactへ出ない。
+
+### M8: Product expansion
+
+M0〜M7完了後に、Nomination、Groove、Achievement、Special Room、Part IVのReader App実装を順次追加する。Achievement deliveryはHTS実装が完了するまで`NOT_IMPLEMENTED`を明示し、成功をsimulationしない。
+
+## Headless CLI contract
+
+全commandはhuman-readable tableをdefaultとし、`--json`で同じ意味のmachine-readable outputを返す。
+
+```ts
+type CommandResult<T> =
+    | { status: "SUCCESS"; data: T; evidence: EvidenceRef[] }
+    | { status: "PENDING"; data?: T; nextCheckAt?: string; waitingFor: string[] }
+    | { status: "INVALID"; reasons: ReasonCode[]; evidence: EvidenceRef[] }
+    | { status: "UNVERIFIABLE"; missing: EvidenceRequirement[]; retryable: boolean };
+```
+
+command outputには、該当する場合にtransaction ID、topic ID、sequence、consensus timestamp、payer account、World block number/hash、provider observationを含める。secret、完全なcredential、不要なpersonal/device情報は出力しない。
+
+最初に実装するcommandだけを固定する。
+
+```text
+doctor
+fixture verify
+world spike
+wallet handoff
+ballot submit
+ballot status
+replay room
+```
+
+追加commandは対応milestoneへ到達した時点で増やす。先に全commandのstubを作らない。
+
+## Evidence and context continuity
+
+real-network testは`artifacts/runs/<UTC-run-id>/`へ保存する。private key、RP signing key、access token、不要なWorld identity情報は保存しない。
+
+```text
+artifacts/runs/<run-id>/
+    run.json            # commit、dependency hash、network、protocol version
+    inputs/             # sanitized canonical inputs
+    hedera/             # topic、transaction、sequence、Mirror response hash
+    world/              # RP/action、anchor、provider observation、call result
+    replay/             # accepted/rejected reason、capability、result hash
+    report.json         # machine-readable verdict
+    next.md             # 次の一つの実行可能action
+```
+
+session開始時はactive GitHub Issue、最新runの`next.md`、git status、直前gate commandを読む。session終了時はIssueへ次を残す。
+
+```markdown
+### Handoff — YYYY-MM-DD
+Commit/worktree: <SHA or dirty files>
+Completed: <observable result>
+Validation: <commands and result>
+Evidence: <run path or links>
+Decision: <new constraint or none>
+Blocked by: <specific dependency or none>
+Next action: <one exact executable step>
+```
+
+SDDへ作業statusを書かない。Issueへprotocolの正本を複製しない。再利用可能なrepository固有のpitfallだけをrepository memoryへ記録する。
+
+## GitHub management
+
+- M0〜M8をGitHub milestoneとして管理する。
+- Issueは1つのobservable outcome、1つの主要boundary、1つのacceptance procedureに限定する。
+- labelsは`spike`、`protocol`、`hedera`、`world-id`、`api`、`cli`、`evidence`、`blocked`、`risk`を使う。
+- `Risk register` Issueを1件だけ作り、architectureまたはscheduleを変えるriskのみを記録する。
+- GitHub Projectは複数workstreamが同時進行するまで作らない。作る場合もstatus、milestone、risk、ownerだけを持ち、SDDやacceptance criteriaを複製しない。
+
+## PoC completion gate
+
+- Gate 0-A〜0-Dがすべて`GO`または明示された`GO WITH CONSTRAINT`である。
+- Orb-backed World ID v4 production proofを実機で取得している。
+- raw proofを含むinitial ballotをHashPackからHedera testnetへ直接投稿している。
+- Mirror Nodeから全chunk、payer、sequence、completion timestampを再構成している。
+- 同じWorld blockでhistorical verifier callをfinality後に再実行している。
+- initial ballotがpublic evidenceから`CAPABILITY_GRANTED`へ到達している。
+- update、withdraw、再update、deadline跨ぎをreal HCS eventで確認している。
+- fresh processによるpublic replayがBackendと同じresult hashを生成している。
+- provider停止、World App拒否、HashPack拒否、partial chunk、`INVALID`、`UNVERIFIABLE`を観測している。
+- testnet artifactと第三者向けverification reportを保存している。
 
 # Part IV: UI Design Handoff
 
