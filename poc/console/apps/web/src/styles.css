@@ -1,0 +1,66 @@
+:root {
+  color: #20201d;
+  background: #f6f3ed;
+  font-family: "Avenir Next", "Hiragino Sans", sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+.shell {
+  width: min(720px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 72px 0;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #b3261e;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+h1 {
+  margin: 0 0 64px;
+  font-family: "Baskerville", "Yu Mincho", serif;
+  font-size: clamp(3rem, 10vw, 6rem);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+h2 {
+  margin: 0 0 16px;
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+dl {
+  margin: 0;
+  border-top: 1px solid #cbc6bc;
+}
+
+dl div {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 24px;
+  padding: 16px 0;
+  border-bottom: 1px solid #cbc6bc;
+}
+
+dt {
+  color: #68645d;
+}
+
+dd {
+  margin: 0;
+  font-weight: 600;
+}
