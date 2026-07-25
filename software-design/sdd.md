@@ -238,30 +238,41 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 この画面ですること：
     推し活のライブ会場
 
-- 領域名：Roomの入口
-    - 領域の目的や機能：初回登録以降に表示される。Roomのタイトル（本日の推し活）、開幕までを表示する。Roomが開くのを待つ画面。「本日の推し活、開幕まで」「みんな、準備はいいか?」との表示があり高揚させる。ライブイベントの開演時計。時間を第一視線に置く
-    - 領域のデザインのテイスト：新刊発売日の高揚感。ライブ会場のイメージ
-    - 内部にある部品
-        - Roomタイトル：今週参加する共有時間を識別する。例：`Weekly Chapter Drop`
-        - Roomに入る：Roomへのprimary CTA。phaseに応じて`Join the Groove`、`Enter the Lobby`、`Replay the Room`を切り替える。中に入るとRoom内部を表示する
-        - Groove Level：現在のReactionとShoutの勢いを示す
-        - Fans in the Lobby：Roomを閲覧中の規模を示すpresence count
-        - Vote deadline：`Voting Closes In`として投票期限を示す
-
 - 領域名：Room内部
-    - 領域名：VotingLineup
-        - 領域の目的や機能：manifestに固定された作品を一覧する
-        - 領域のデザインのテイスト：週刊誌の目次と書店の新刊台を組み合わせる
+    - 領域名： 投票開始前画面
+        - 領域の目的や機能：Roomのタイトル（本日の推し活）、開幕までを表示する。Roomが開くのを待つ画面。「本日の推し活、開幕まで」「みんな、準備はいいか?」との表示があり高揚させる。ライブイベントの開演時計。時間を第一視線に置く
+        - 領域のデザインのテイスト：新刊発売日の高揚感。ライブ会場のイメージ
         - 内部にある部品
-            - Lineup：cover stackと`Tonight's Lineup`で候補作品の全体像を伝える
-            - Locked state：`Lineup Locked`を表示する
-            - 推す：推すボタン。この作品へ投票・コメントするものを選択する
-    - 領域名：VotingDialogue
+            - Roomタイトル：今週参加する共有時間を識別する。例：`Weekly Chapter Drop`
+            - Roomに入る：Roomへのprimary CTA。phaseに応じて`Join the Groove`、`Enter the Lobby`、`Replay the Room`を切り替える。中に入るとRoom内部を表示する
+            - Groove Level：現在のReactionとShoutの勢いを示す
+            - Fans in the Lobby：Roomを閲覧中の規模を示すpresence count
+            - Vote deadline：`Voting Closes In`として投票期限を示す
+    - 領域名： 投票中画面
+        - 領域名：VotingLineup
+            - 領域の目的や機能：manifestに固定された作品を一覧する
+            - 領域のデザインのテイスト：週刊誌の目次と書店の新刊台を組み合わせる
+            - 内部にある部品
+                - Lineup：cover stackと`Tonight's Lineup`で候補作品の全体像を伝える
+                - Locked state：`Lineup Locked`を表示する
+                - 推す：推すボタン。この作品へ投票・コメントするものを選択する
+        - 領域名：VotingStatus
+            - 領域の目的や機能：選んだ作品のGroove（他の人のスタンプや叫びの勢い）を表示する
+            - 領域のデザインのテイスト：みんなが作品の周りに集まっている画面。作品が中心にあり、周りにみんなのスタンプが囲っている
+            - 内部にある部品
+                - 作品の画像とそれを取り囲むみんなのスタンプ（どんどん増えていく。スタンプが押されるたびに）
+                - スタンプごとの投稿数
+                    スタンプ名　X人
+                - スタンプを押した人数
+                - 叫び一覧
+    - 領域名：投票後画面VotingDialogue
         - 領域の目的や機能：実際に感情のスタンプを選んで叫びを記入するダイアログ
         - 領域のデザインのテイスト：この会の感情をスタンプで表そう
         - 内部にある部品
             - スタンプ
-            - 
+            - 叫び
+            - 投稿する　ボタン
+
 
 ### 画面名：Nominee受付
 
