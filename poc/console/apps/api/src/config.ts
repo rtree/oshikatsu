@@ -17,7 +17,7 @@ const environmentSchema = z.object({
   WORLD_APP_ID: z.string().startsWith("app_").optional(),
   WORLD_RP_ID: z.string().startsWith("rp_").optional(),
   WORLD_RP_SIGNING_KEY: z.string().min(1).optional(),
-  ADMIN_TOKEN_AUDIENCE: z.string().url().optional(),
+  ADMIN_TOKEN_AUDIENCE: z.string().min(1).optional(),
   ADMIN_ALLOWED_EMAILS: z.string().optional(),
 });
 

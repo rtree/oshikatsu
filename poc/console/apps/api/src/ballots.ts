@@ -59,8 +59,9 @@ function getBallotAction(roomId: string) {
 
 export async function createBallotRequest(input: z.infer<typeof ballotRequestSchema>) {
   const room = await getRoom(input.room_id);
-  if (!room || room.phase !== "LIVE") throw new Error("Room is not live.");
+  if (!room) throw new Error("Room not found.");
   await requireRoomAction(room.id, "BALLOT_V1");
+  if (room.phase !== "LIVE") throw new Error("Room is not live.");
   assertNominees(room.works, input.nominee_ids);
   const world = getWorldIdEnvironment(); const action = getBallotAction(room.id);
   const signature = signRequest({ action, signingKeyHex: world.signingKey, ttl: 300 });

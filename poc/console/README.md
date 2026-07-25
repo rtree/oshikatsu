@@ -94,6 +94,10 @@ The CLI obtains an identity token from the active `gcloud` account. It never acc
 token argument. Preview any operation without authentication or network access by adding
 `--dry-run`.
 
+For a user credential, `gcloud auth print-identity-token` commonly emits the Google OAuth client
+ID as `aud`; configure `ADMIN_TOKEN_AUDIENCE` to that verified claim. Workload identities that
+support custom audiences may set `OSHIKATSU_ADMIN_AUDIENCE` to the same server-side value.
+
 ```bash
 export OSHIKATSU_ADMIN_API=https://oshikatsu-api-m74bxsqz7a-an.a.run.app
 # Set this only when your credential type supports custom token audiences.

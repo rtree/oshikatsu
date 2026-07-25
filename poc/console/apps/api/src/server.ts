@@ -100,6 +100,15 @@ function adminError(response: express.Response, error: unknown) {
   response.status(status).json({ error: message });
 }
 
+function operationError(response: express.Response, error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : fallback;
+  if (message === "ROOM_ARCHIVED" || message === "ACTION_RETIRED") {
+    response.status(409).json({ error: message });
+    return;
+  }
+  response.status(400).json({ error: message });
+}
+
 app.post("/api/admin/rooms", async (request, response) => {
   const parsed = createRoomSchema.safeParse(request.body);
   const key = request.header("idempotency-key") ?? "";
@@ -177,7 +186,7 @@ app.post("/api/groove/prepare", async (request, response) => {
   try {
     response.status(201).json({ preparation: await prepareGroove(parsed.data) });
   } catch (error) {
-    response.status(400).json({ error: error instanceof Error ? error.message : "Groove preparation failed." });
+    operationError(response, error, "Groove preparation failed.");
   }
 });
 
@@ -215,13 +224,13 @@ app.get("/api/projection/rooms/:roomId", async (request, response) => {
 app.post("/api/ballots/request", async (request, response) => {
   const parsed = ballotRequestSchema.safeParse(request.body);
   if (!parsed.success) { response.status(400).json({ error: "Invalid ballot intent." }); return; }
-  try { response.json(await createBallotRequest(parsed.data)); } catch (error) { response.status(400).json({ error: error instanceof Error ? error.message : "Ballot request failed." }); }
+  try { response.json(await createBallotRequest(parsed.data)); } catch (error) { operationError(response, error, "Ballot request failed."); }
 });
 
 app.post("/api/ballots/prepare", async (request, response) => {
   const parsed = ballotPrepareSchema.safeParse(request.body);
   if (!parsed.success) { response.status(400).json({ error: "Invalid ballot proof." }); return; }
-  try { response.status(201).json({ preparation: await prepareBallot(parsed.data) }); } catch (error) { response.status(400).json({ error: error instanceof Error ? error.message : "Ballot preparation failed." }); }
+  try { response.status(201).json({ preparation: await prepareBallot(parsed.data) }); } catch (error) { operationError(response, error, "Ballot preparation failed."); }
 });
 
 app.get("/api/ballots/status/:transactionId", async (request, response) => {
@@ -279,8 +288,12 @@ app.post("/api/world-id/request", async (request, response) => {
       room_id: roomId,
       signal,
     });
-  } catch {
-    response.status(503).json({ error: "World ID is not configured." });
+  } catch (error) {
+    if (error instanceof Error && (error.message === "ROOM_ARCHIVED" || error.message === "ACTION_RETIRED")) {
+      response.status(409).json({ error: error.message });
+    } else {
+      response.status(503).json({ error: "World ID is not configured." });
+    }
   }
 });
 
