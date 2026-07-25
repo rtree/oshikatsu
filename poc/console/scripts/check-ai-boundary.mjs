@@ -23,7 +23,7 @@ for (const packageFile of packageFiles) {
   }
 }
 
-for (const environmentFile of [".env.example", "apps/web/.env.example"]) {
+for (const environmentFile of ["../.env.example", "apps/web/.env.example"]) {
   const content = await readFile(resolve(root, environmentFile), "utf8");
   for (const key of forbiddenEnvironmentKeys) {
     if (new RegExp(`^${key}=`, "m").test(content)) {

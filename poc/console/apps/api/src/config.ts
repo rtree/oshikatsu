@@ -5,7 +5,7 @@ import { z } from "zod";
 
 if (process.env.NODE_ENV !== "production") {
   const sourceDirectory = fileURLToPath(new URL(".", import.meta.url));
-  loadEnv({ path: resolve(sourceDirectory, "../../../.env"), quiet: true });
+  loadEnv({ path: resolve(sourceDirectory, "../../../../.env"), quiet: true });
 }
 
 const environmentSchema = z.object({

@@ -40,6 +40,42 @@
         "/^gh issue create --repo rtree/oshikatsu --title 'Risk register' --label risk --milestone 'M0: Feasibility gates' --body \\$'Part IIIのarchitectureまたはscheduleを変え得るriskだけを管理する。詳細要件は`software-design/sdd\\.md`を正本とする。\\\\n\\\\n\\| ID \\| Risk \\| Trigger \\| Mitigation / decision point \\| Gate \\|\\\\n\\| --- \\| --- \\| --- \\| --- \\| --- \\|\\\\n\\| R1 \\| v4 custom signalがraw proofへ入らない \\| returned `signal_hash`が期待値と一致しない \\| ballot binding protocolを再設計 \\| #1 \\|\\\\n\\| R2 \\| v4 nullifierが同じRoomでhuman uniquenessを表さない \\| 同じhuman/RP/actionでfresh usable nullifierを複数取得 \\| sessionまたは別capability modelを検討 \\| #2 \\|\\\\n\\| R3 \\| HashPackでraw proof envelopeを完走できない \\| chunk欠落、署名不能、partial failure不明 \\| payload縮小、application chunk、commitment方式を比較 \\| #3 \\|\\\\n\\| R4 \\| historical World stateを独立再現できない \\| provider不一致またはstate欠落 \\| archive要件または保証範囲を見直す \\| #4 \\|\\\\n\\| R5 \\| finalityとanchor freshnessが運用上両立しない \\| valid proofが規定時間内のanchorを確保できない \\| freshness ruleを実測に基づきPart Iで再決定 \\| #4 \\|\\\\n\\| R6 \\| Mirror RESTだけではpayer/chunk結合に必要な証拠が足りない \\| raw responseでgroup integrityを説明できない \\| transaction recordまたはrecord file validationを追加 \\| #3 \\|\\\\n\\| R7 \\| proof envelopeのchunk fee/latencyがUX上不適切 \\| 実測chunk数、fee、deadline失敗率が許容外 \\| safe close timeまたはsingle commitment方式を検討 \\| #3 \\|\\\\n\\\\n## Review rule\\\\nGate verdictまたはtrigger発生時だけ更新する。通常のtask statusや一般的なtech debtはここへ入れない。'$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^gh issue list --repo rtree/oshikatsu --state open --limit 20 --json number,title,milestone,labels,url --jq '\\.\\[\\] \\| \\[\\.number,\\.title,\\(\\.milestone\\.title // \"\"\\),\\(\\[\\.labels\\[\\]\\.name\\]\\|join\\(\",\"\\)\\),\\.url\\] \\| @tsv' && gh api 'repos/rtree/oshikatsu/milestones\\?state=open&per_page=100' --jq '\\.\\[\\] \\| \\[\\.number,\\.title,\\.open_issues\\] \\| @tsv'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd poc/console && npm run security:check && npm run check && npm run build$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^for key in HEDERA_NETWORK HEDERA_OPERATOR_ID HEDERA_OPERATOR_KEY MIRROR_URL WORLD_APP_ID WORLD_RP_ID WORLD_RP_SIGNING_KEY WORLD_ACTION GOOGLE_CLOUD_PROJECT VERTEX_AI_LOCATION; do if grep -Eq \"\\^\\$\\{key\\}=\\.\\+\" poc/console/\\.env; then print \"\\$key=SET\"; else print \"\\$key=MISSING\"; fi; done\nprintf 'gcloud-account='; gcloud auth list --filter=status:ACTIVE --format='value\\(account\\)' \\| sed 's/\\./\\*/g' \\| awk '\\{print length\\(\\$0\\)>0\\?\"SET\":\"MISSING\"\\}'\nprintf 'gcloud-project='; project=\\$\\(gcloud config get-value project 2>/dev/null\\); \\[\\[ -n \"\\$project\" && \"\\$project\" != '\\(unset\\)' \\]\\] && print SET \\|\\| print MISSING\nprintf 'adc='; gcloud auth application-default print-access-token >/dev/null 2>&1 && print SET \\|\\| print MISSING\nprintf 'firebase-cli='; command -v firebase >/dev/null && print SET \\|\\| print MISSING\nprintf 'gh='; gh auth status >/dev/null 2>&1 && print SET \\|\\| print MISSING$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^for f in poc/\\.env poc/console/\\.env; do if \\[\\[ -f \"\\$f\" \\]\\]; then print \"\\$f=EXISTS\"; else print \"\\$f=MISSING\"; fi; done\nfor f in poc/\\.env poc/console/\\.env; do if \\[\\[ -f \"\\$f\" \\]\\]; then print \"\\[\\$f keys\\]\"; sed -n 's/\\^\\\\\\(\\[A-Za-z_\\]\\[A-Za-z0-9_\\]\\*\\\\\\)=\\.\\*/\\\\1/p' \"\\$f\" \\| sort -u; fi; done$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git ls-files --error-unmatch poc/\\.env >/dev/null 2>&1; ret=\\$\\?; \\[\\[ \\$ret -eq 0 \\]\\] && print 'poc/\\.env=TRACKED' \\|\\| print 'poc/\\.env=NOT_TRACKED'; git check-ignore -v poc/\\.env poc/console/\\.env \\|\\| true$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^for f in /Users/araki/operations/oshikatsu/poc/\\.env /Users/araki/operations/oshikatsu/poc/console/\\.env; do if \\[\\[ -f \"\\$f\" \\]\\]; then print \"\\$f=EXISTS\"; print \"keys:\"; sed -n 's/\\^\\\\\\(\\[A-Za-z_\\]\\[A-Za-z0-9_\\]\\*\\\\\\)=\\.\\*/\\\\1/p' \"\\$f\" \\| sort -u; else print \"\\$f=MISSING\"; fi; done$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^if \\[\\[ -e /Users/araki/operations/oshikatsu/poc/\\.env \\]\\]; then print 'destination-exists-refusing-to-overwrite'; exit 1; fi\nmv /Users/araki/operations/oshikatsu/poc/console/\\.env /Users/araki/operations/oshikatsu/poc/\\.env\nprint 'moved-without-reading-values'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node --import tsx -e 'import\\(\"\\./apps/api/src/config\\.ts\"\\)\\.then\\(\\(\\) => console\\.log\\(\"env-load-ok\"\\)\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git ls-files --error-unmatch poc/\\.env >/dev/null 2>&1; ret=\\$\\?; \\[\\[ \\$ret -eq 0 \\]\\] && print TRACKED \\|\\| print NOT_TRACKED; git check-ignore -v poc/\\.env; \\[\\[ -e poc/console/\\.env \\]\\] && print 'old-env-still-exists' \\|\\| print 'old-env-removed'$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

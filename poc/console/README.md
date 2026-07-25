@@ -18,7 +18,7 @@ Run the API in another terminal:
 npm run dev:api
 ```
 
-The API reads server-only development values from `poc/console/.env`. The web app only receives variables prefixed with `VITE_`; never put Hedera keys, World RP signing keys, service-account JSON, or Google Cloud credentials in a `VITE_` variable.
+The API reads server-only development values from `poc/.env`. Start from `poc/.env.example`. The web app only receives variables prefixed with `VITE_`; never put Hedera keys, World RP signing keys, service-account JSON, or Google Cloud credentials in a `VITE_` variable.
 
 ## Google Cloud authentication
 
