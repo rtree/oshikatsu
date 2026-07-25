@@ -190,6 +190,87 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 
 画面は、利用者がいま何を感じ、何を決め、次にどこへ進むかを中心に設計する。各画面は必要なデータを受け取り、利用者の選択または確認結果を次の画面へ渡す。通信方式、URL構造、component library、細かな寸法はCoding工程で決定する。
 
+## UI language and fandom vocabulary
+
+Reader Appで利用者に表示するUI copyは英語を正本とする。日本語はこの設計書における意図説明にのみ使い、実装では英語copy keyを参照する。
+
+英語表現は、Crunchyroll Anime Awardsで定着している`Nominees`、`Vote`、`Winners`、Bilibili英語版で使われる`Trending Now`、`For You`、`Views`を基礎にする。その上で、ファン同士の会話には`oshi`、`peak`、`too precious`、`I'm dead`、`emotionally wrecked`など英語圏のanime/manga communityで通じる語を使う。
+
+同じ日本語の「推す」でも、操作のformal effectに応じて英語を分ける。
+
+| Product concept | UI term | Usage rule |
+| --- | --- | --- |
+| 推し | `Oshi` | ブランド固有のfavorite。初出では`Your Oshi`のように文脈を添える |
+| 推し活 | `Oshi Time` | 共有時間そのもの。Room参加CTAでは`Join the Groove`を優先する |
+| 作品を推す | `Cheer` | 感情や応援を送るinformal action。formal ballotには使わない |
+| スタンプ | `React` / `Reaction` | emotion stampを送る操作と、その結果 |
+| 叫び | `Shout` | 短い熱量の高い感想。一般的な長文`Comment`と区別する |
+| 候補に推薦 | `Nominate` | Nomination Window中のcandidate追加 |
+| 投票 | `Vote` / `Ballot` | HCSへ記録されるformal intentだけに使う |
+| 投票を更新 | `Update Ballot` | capabilityを使うranking更新 |
+| 投票を取消 | `Withdraw Ballot` | current intentをrevokeへ更新。`Delete`は使わない |
+| 盛り上がり | `Groove` | Oshikatsu固有のlive reaction aggregate |
+| 共鳴数 | `Resonance` | ReactionとShoutから導出するengagement指標 |
+| 実績 | `Badges` | profileで収集するachievement。NFTである場合だけ`NFT`と表示する |
+| 原石発掘 | `Hidden Gem Scout` | 早期にwinnerを推したachievement |
+| 継続応援 | `Long-Run Supporter` | 連続Room参加achievement |
+
+`Stan`は強い支持を表す一方で人物、作品、皮肉のいずれにも使われるため、command labelには使わない。`Like`は軽すぎてformal effectを誤認させるため、Reaction count以外には使わない。`Jury`は専門審査員を連想させるため、World IDで検証された一般参加者には`Voter`または`Verified Voter`を使う。
+
+### Reaction vocabulary
+
+Reactionはemojiだけに依存せず、screen readerと意味の一貫性のため英語labelを必ず持つ。
+
+| Emoji | Canonical label | Fan-facing nuance |
+| --- | --- | --- |
+| 🔥 | `Peak Chapter` | 神回、peak fiction |
+| 😭 | `Cried My Eyes Out` | 泣いた |
+| 🥺 | `Too Precious` | 尊い、must protect |
+| 🐉 | `Next Chapter Now` | 続き召喚 |
+| 👑 | `Chapter of the Week` | 優勝 |
+| 💡 | `I'm Dead` | 無事死亡 |
+| 🤗 | `I Melted` | 溶けた |
+| 🐼 | `Emotionally Wrecked` | 情緒崩壊 |
+| 🌋 | `I'm Losing It` | 情緒噴火 |
+
+Shoutのplaceholderは`Drop your post-chapter scream...`とする。seed copyには`Thank you, sensei. I won't survive until next week.`、`This chapter was PEAK.`、`My emotions are in shambles.`を使える。ただし同じ文を自動投稿せず、利用者本人の入力だけをHCSへ送る。
+
+## Visual direction
+
+`imggen/`の画像はvisual referenceであり、そのまま一枚絵として画面全体へ貼らない。実装では背景、cover、avatar、装飾を個別assetとして使い、title、countdown、buttons、navigation、statusはReact componentとして再構成する。これによりresponsive layout、英語copy、accessibility、live data更新を成立させる。
+
+- 基調はblack stage、electric violet、hot magenta、cyan highlight。Special Roomだけgoldをwinner hierarchyへ使う。
+- manga coverとRoom venueを第一視線に置き、説明文をhero cardへ閉じ込めない。
+- glowはprimary CTA、live state、winner revealへ限定する。通常のlist itemとform fieldは静かなoutlineで保つ。
+- confetti、light sticks、floating reactionsはRoom phaseに連動するmotion layerとし、本文やcontrolsを覆わない。
+- body textとprotocol statusは高contrastを維持する。magenta textをsmall body copyへ使わない。
+- bottom navigationは画面ごとに項目を変えず、`Home / Rankings / Groove / Community / Profile`へ固定する。中央の`Groove`だけRoomがOPENのときactive actionとして強調する。
+- mobile firstで設計し、desktopでは中央のlive canvasと左右のRoom/ballot railへ展開する。mobile screenshotを横に引き伸ばさない。
+
+## Image reference map
+
+| Flow / screen | Source reference | Adopt | Do not copy literally |
+| --- | --- | --- | --- |
+| Home / Room entrance | `imggen/image-1784953999932.png`, `imggen/image-1784954070675.png` | full-bleed venue、Room stats、強いentry CTA | 日本語を画像に焼き込む、nav項目の重複 |
+| My Shelf onboarding | `imggen/image-1784954468846.png` | cover-first selection、selected state | 2-column固定、`Registered`という曖昧な状態 |
+| Wallet connection | `imggen/image-1784954508343.png` | walletを一つのtrust stepとして見せる | EVM walletの選択肢。PoCはHashPackのみ |
+| World proof request | `imggen/image-1784954593038.png` | privacy benefitと単一CTA | World logoの独自改変、proof完了前のverified表示 |
+| Room lobby | `imggen/image-1784954638192.png` | 開演countdown、待機人数、venue anticipation | countdownを画像へ焼き込む |
+| Live Room / release list | `imggen/image-1784954665810.png` | chapter update list、cover、Groove summary | `Cheer`をformal Voteとして扱う |
+| Work Groove hero | `imggen/image-1784954689187.png` | full-bleed cover、chapter、deadline | `0/1 votes`。通常RoomはTop 3 ballot |
+| Reaction composer | `imggen/image-1784954719101.png` | large reaction palette、Shout input | emojiだけで意味を伝える |
+| Live GrooveWave | `imggen/image-1784954742234.png` | reaction swarm、distribution、live count | decorative emojiがdataを隠す |
+| Community Shouts | `imggen/image-1784954762466.png` | avatar、Shout、Reaction counts、sort | heartをformal vote countとして表示する |
+| Room result | `imggen/image-1784954781042.png` | winner feature、2位・3位、share CTA | verification summaryを省略する |
+| My Oshikatsu | `imggen/image-1784954798005.png` | badge shelf、My Shelf、participation identity | account identityを完全に隠す |
+| Special Room nominee grid | `imggen/image-1784954825397.png`, `imggen/image-1784954870788.png` | numbered nominees、evidence metrics | AI scoreを投票資格や自動順位にする |
+| Special Room criteria and CTA | `imggen/image-1784954892262.png`, `imggen/image-1784954921738.png` | evidence categories、deadline、single strong CTA | `AI evaluation`を客観的事実として表示する |
+| Nominee story | `imggen/image-1784954950738.png`, `imggen/image-1784954971434.png`, `imggen/image-1784954992612.png` | profile narrative、public evidence、discovered works | metricの出典を省略する |
+| Special Room winner | `imggen/image-1784955011133.png`, `imggen/image-1784955035593.png`, `imggen/image-1784955052427.png` | ceremonial reveal、all finalists、award record | 未実装rewardを確定特典として見せる |
+| Wallet protocol reference | `imggen/image-1784861856560.png`, `imggen/image-1784862707894.png` | wallet approval sheetの情報密度 | Oshikatsuのvisual directionとして使う |
+
+画像に含まれる漫画cover、人物、logoはprototype assetとして扱う。本番投入前に、作品ごとの配信許諾、人物画像の利用権、Worldおよびwallet brand guidelineを確認する。
+
 ## Reader App
 
 ### 画面名：ホーム
@@ -202,7 +283,8 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 - 領域の目的や機能：Roomのタイトル、現在のphase（開催時刻までのカウントダウンなど）を示す
 - 領域のデザインのテイスト：新刊発売日の高揚感。ファンミ会場のイメージ
 - 内部にある部品
-   - Roomタイトル：今週参加する共有時間を識別しRoomへの入り口
+   - Roomタイトル：今週参加する共有時間を識別する。例：`Weekly Chapter Drop`
+   - Roomに入る：Roomへのprimary CTA。phaseに応じて`Join the Groove`、`Enter the Lobby`、`Replay the Room`を切り替える
 
 領域名：今週の熱
 
