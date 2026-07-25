@@ -1,0 +1,10 @@
+.git
+.gitignore
+.firebase
+.firebaserc
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/dist
+**/*.tsbuildinfo

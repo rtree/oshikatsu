@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "ethglobal-lisbon2026-oshikatsu",
     "public": "apps/web/dist",
     "ignore": [
       "firebase.json",

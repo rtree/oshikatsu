@@ -109,8 +109,14 @@ export function App() {
       </section>
       {request && (
         <IDKitRequestWidget
+          key={request.context_token}
           open={isOpen}
-          onOpenChange={setIsOpen}
+          onOpenChange={(open) => {
+            setIsOpen(open);
+            if (!open) {
+              setRequest(null);
+            }
+          }}
           app_id={request.app_id}
           action={request.action}
           rp_context={request.rp_context}

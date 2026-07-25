@@ -63,8 +63,8 @@ Build from `poc/console` so the workspace lockfile is available:
 
 ```bash
 gcloud builds submit \
-  --tag REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/oshikatsu-api \
-  --file apps/api/Dockerfile .
+  --project ethglobal-lisbon2026-oshikatsu \
+  --config cloudbuild.api.yaml .
 ```
 
 Use Secret Manager references for Hedera and World server keys. Do not pass secret values directly on a command line or store them in Firebase Hosting configuration.
