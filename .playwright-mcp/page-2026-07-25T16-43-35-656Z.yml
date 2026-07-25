@@ -1,0 +1,49 @@
+- generic [ref=e3]:
+  - main [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: O
+        - strong [ref=e8]: Oshikatsu
+      - link "Start My Oshikatsu" [ref=e9] [cursor=pointer]:
+        - /url: https://ethglobal-lisbon2026-oshikatsu.web.app/?wallet-test=1
+    - region [ref=e11]:
+      - img "Readers gathering in a luminous manga event venue" [ref=e12]
+      - generic [ref=e14]:
+        - paragraph [ref=e15]: WEEKLY CHAPTER DROP · LIVE NOW
+        - heading "Read together. Lose it together." [level=1] [ref=e16]: Read together.Lose it together.
+        - paragraph [ref=e17]: Five new chapters. One shared night. Enter the Room and find the story everyone is shouting about.
+        - generic [ref=e18]:
+          - button "Join the Groove" [ref=e19] [cursor=pointer]
+          - button "Browse First" [ref=e22] [cursor=pointer]
+        - generic [ref=e23]:
+          - generic [ref=e24]: 28,431 in the Room
+          - generic [ref=e29]: Voting closes in 01:42:18
+    - region [ref=e33]:
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - paragraph [ref=e36]: ROOMS
+          - heading "Tonight's shared moments" [level=2] [ref=e37]
+        - button "View all" [ref=e38] [cursor=pointer]
+      - button "Solo Leveling cover Weekly Chapter Drop Lineup locked · 5 works LIVE" [ref=e39] [cursor=pointer]:
+        - img "Solo Leveling cover" [ref=e40]
+        - generic [ref=e41]:
+          - strong [ref=e42]: Weekly Chapter Drop
+          - generic [ref=e43]: Lineup locked · 5 works
+        - generic [ref=e44]: LIVE
+      - button "Omniscient Reader cover Sunday Reader Night Lobby opens in 03:18:42 SOON" [ref=e46] [cursor=pointer]:
+        - img "Omniscient Reader cover" [ref=e47]
+        - generic [ref=e48]:
+          - strong [ref=e49]: Sunday Reader Night
+          - generic [ref=e50]: Lobby opens in 03:18:42
+        - generic [ref=e51]: SOON
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - paragraph [ref=e54]: SPECIAL ROOM
+        - heading "Manga Culture Contribution Award" [level=2] [ref=e55]
+        - paragraph [ref=e56]: Celebrate the Readers who keep hidden gems alive.
+      - button "Enter the ceremony" [ref=e57] [cursor=pointer]
+  - navigation "Primary navigation" [ref=e58]:
+    - button "Home" [ref=e59] [cursor=pointer]
+    - button "Rankings" [ref=e64] [cursor=pointer]
+    - button "My Shelf" [ref=e72] [cursor=pointer]
+    - button "Profile" [ref=e77] [cursor=pointer]

@@ -1,0 +1,49 @@
+- generic [ref=e3] [box=0,0,1185,1524]:
+  - main [ref=e4] [box=0,0,1185,1420]:
+    - generic [ref=e5] [box=0,0,1185,64]:
+      - generic [ref=e6] [box=32,16,120,32]:
+        - generic [ref=e7] [box=32,16,32,32]: O
+        - strong [ref=e8] [box=74,20,78,23]: Oshikatsu
+      - link "Start My Oshikatsu" [ref=e9] [cursor=pointer] [box=1007,16,146,32]:
+        - /url: https://ethglobal-lisbon2026-oshikatsu.web.app/?wallet-test=1
+    - region [ref=e11] [box=0,64,1185,720]:
+      - img "Readers gathering in a luminous manga event venue" [ref=e12] [box=0,64,1185,720]
+      - generic [ref=e14] [box=0,122,760,662]:
+        - paragraph [ref=e15] [box=32,162,696,12]: WEEKLY CHAPTER DROP · LIVE NOW
+        - heading "Read together. Lose it together." [level=1] [ref=e16] [box=32,182,696,394]: Read together.Lose it together.
+        - paragraph [ref=e17] [box=32,591,590,53]: Five new chapters. One shared night. Enter the Room and find the story everyone is shouting about.
+        - generic [ref=e18] [box=32,660,696,52]:
+          - button "Join the Groove" [ref=e19] [cursor=pointer] [box=32,660,204,52]
+          - button "Browse First" [ref=e22] [cursor=pointer] [box=248,663,123,46]
+        - generic [ref=e23] [box=32,734,696,18]:
+          - generic [ref=e24] [box=32,734,134,18]: 28,431 in the Room
+          - generic [ref=e29] [box=184,734,164,18]: Voting closes in 01:42:18
+    - region [ref=e33] [box=0,784,1185,397]:
+      - generic [ref=e34] [box=32,820,1121,58]:
+        - generic [ref=e35] [box=32,820,305,58]:
+          - paragraph [ref=e36] [box=32,820,305,12]: ROOMS
+          - heading "Tonight's shared moments" [level=2] [ref=e37] [box=32,840,305,39]
+        - button "View all" [ref=e38] [cursor=pointer] [box=1106,844,47,34]
+      - button "Solo Leveling cover Weekly Chapter Drop Lineup locked · 5 works LIVE" [ref=e39] [cursor=pointer] [box=32,898,1121,112]:
+        - img "Solo Leveling cover" [ref=e40] [box=41,907,68,94]
+        - generic [ref=e41] [box=123,930,938,48]:
+          - strong [ref=e42] [box=123,930,938,23]: Weekly Chapter Drop
+          - generic [ref=e43] [box=123,958,938,20]: Lineup locked · 5 works
+        - generic [ref=e44] [box=1075,938,65,32]: LIVE
+      - button "Omniscient Reader cover Sunday Reader Night Lobby opens in 03:18:42 SOON" [ref=e46] [cursor=pointer] [box=32,1022,1121,112]:
+        - img "Omniscient Reader cover" [ref=e47] [box=41,1031,68,94]
+        - generic [ref=e48] [box=123,1054,943,48]:
+          - strong [ref=e49] [box=123,1054,943,23]: Sunday Reader Night
+          - generic [ref=e50] [box=123,1082,943,20]: Lobby opens in 03:18:42
+        - generic [ref=e51] [box=1080,1061,60,32]: SOON
+    - generic [ref=e52] [box=0,1181,1185,239]:
+      - generic [ref=e53] [box=21,1218,1143,93]:
+        - paragraph [ref=e54] [box=21,1218,1143,12]: SPECIAL ROOM
+        - heading "Manga Culture Contribution Award" [level=2] [ref=e55] [box=21,1238,1143,42]
+        - paragraph [ref=e56] [box=21,1288,1143,23]: Celebrate the Readers who keep hidden gems alive.
+      - button "Enter the ceremony" [ref=e57] [cursor=pointer] [box=21,1339,205,44]
+  - navigation "Primary navigation" [ref=e58] [box=283,733,620,72]:
+    - button "Home" [ref=e59] [cursor=pointer] [box=284,734,155,71]
+    - button "Rankings" [ref=e64] [cursor=pointer] [box=438,734,155,71]
+    - button "My Shelf" [ref=e72] [cursor=pointer] [box=593,734,155,71]
+    - button "Profile" [ref=e77] [cursor=pointer] [box=747,734,155,71]
