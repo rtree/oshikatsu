@@ -119,3 +119,15 @@ button:disabled {
   margin: 0;
   font-weight: 700;
 }
+
+.wallet-section {
+  margin-top: 56px;
+  padding-top: 32px;
+  border-top: 1px solid #cbc6bc;
+}
+
+.wallet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}

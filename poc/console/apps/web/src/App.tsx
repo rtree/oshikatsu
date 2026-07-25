@@ -5,6 +5,12 @@ import {
   type IDKitResult,
   type RpContext,
 } from "@worldcoin/idkit";
+import {
+  connectHashPack,
+  createReactionEnvelope,
+  submitReaction,
+  type WalletEvidence,
+} from "./hedera-wallet";
 
 type WorldIdRequest = {
   action: string;
@@ -46,6 +52,8 @@ export function App() {
   const [lastErrorCode, setLastErrorCode] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomId, setRoomId] = useState("");
+  const [walletEvidence, setWalletEvidence] = useState<WalletEvidence | null>(null);
+  const [walletStatus, setWalletStatus] = useState("HashPack未接続");
 
   useEffect(() => {
     void fetch("/api/rooms")
@@ -109,6 +117,32 @@ export function App() {
       roomId: request?.room_id ?? "unknown",
       signalMatches: verification.signal_matches === true,
     });
+  }
+
+  async function openHashPack() {
+    setError(null);
+    setWalletStatus("HashPackで接続を承認してください");
+    try {
+      await connectHashPack();
+      setWalletStatus("接続画面を開きました。HashPackでtestnet accountを選択してください");
+    } catch (caughtError) {
+      setWalletStatus("HashPack接続失敗");
+      setError(caughtError instanceof Error ? caughtError.message : "HashPack connection failed.");
+    }
+  }
+
+  async function sendReaction() {
+    setError(null);
+    setWalletEvidence(null);
+    setWalletStatus("HashPackでHCS投稿を承認してください");
+    try {
+      const evidence = await submitReaction(createReactionEnvelope());
+      setWalletEvidence(evidence);
+      setWalletStatus("Mirror確認済み");
+    } catch (caughtError) {
+      setWalletStatus("HCS投稿未確認");
+      setError(caughtError instanceof Error ? caughtError.message : "HCS submission failed.");
+    }
   }
 
   return (
@@ -185,6 +219,23 @@ export function App() {
         />
       )}
       {lastErrorCode && <p className="message error">Diagnostic: {lastErrorCode}</p>}
+      <section className="wallet-section" aria-labelledby="wallet-heading">
+        <h2 id="wallet-heading">HashPack + HCS</h2>
+        <p className="lede">900 bytes以下のReactionを1件だけtestnetへ投稿します。</p>
+        <div className="wallet-actions">
+          <button type="button" onClick={openHashPack}>HashPackを接続</button>
+          <button type="button" onClick={sendReaction}>ReactionをHCSへ投稿</button>
+        </div>
+        <p className="message">{walletStatus}</p>
+        {walletEvidence && (
+          <dl className="artifact">
+            <div><dt>Payer</dt><dd>{walletEvidence.accountId}</dd></div>
+            <div><dt>Bytes</dt><dd>{walletEvidence.messageBytes}</dd></div>
+            <div><dt>Sequence</dt><dd>{walletEvidence.sequenceNumber}</dd></div>
+            <div><dt>Consensus</dt><dd>{walletEvidence.consensusTimestamp}</dd></div>
+          </dl>
+        )}
+      </section>
     </main>
   );
 }

@@ -516,6 +516,14 @@
         "/^npm --prefix /Users/araki/operations/oshikatsu/poc/console audit --omit=dev --json \\| node -e 'let s=\"\";process\\.stdin\\.on\\(\"data\",d=>s\\+=d\\)\\.on\\(\"end\",\\(\\)=>\\{const x=JSON\\.parse\\(s\\); console\\.log\\(JSON\\.stringify\\(x\\.metadata\\.vulnerabilities\\)\\)\\}\\)'$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^gh issue edit 11 --repo rtree/oshikatsu --remove-label blocked --add-label enhancement && gh issue comment 11 --repo rtree/oshikatsu --body \\$'## Priority update — 2026-07-25 16:13\\\\n\\\\nThis remains open but is \\*\\*low priority / non-blocking for Gate 0-C and the hackathon demo\\*\\*\\. The demo may use a bounded public artifact location while preserving digest verification and `UNVERIFIABLE` semantics\\. Durable multi-provider availability must be completed before production capability claims, not before the single-message HashPack transport demo\\.\\\\n\\\\nDo not close until fresh-process replay from the committed artifact succeeds\\.'\ngh issue comment 8 --repo rtree/oshikatsu --body \\$'## Current production audit after wallet dependency isolation\\\\n\\\\nThe legacy HashPack/Reown compatibility graph was removed from the public web workspace \\(474 packages removed\\)\\. Current `npm audit --omit=dev` reports exactly 3 remaining findings: 1 high, 2 moderate, 0 critical\\. These are in the API-side Hiero SDK dependency path\\.\\\\n\\\\nDecision for the remaining hour: open, accepted testnet/hackathon risk; not a release blocker\\. Keep this Issue open until patched compatible versions are available and regression-tested\\. No `npm audit fix --force`\\.'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh api repos/hgraph-io/hedera-app/contents/src/V2App\\.tsx -H 'Accept: application/vnd\\.github\\.raw\\+json' \\| sed -n '1,220p'\nprintf '\\\\n--- methods hook ---\\\\n'\ngh api repos/hgraph-io/hedera-app/contents/src/hooks/useHederaMethods\\.ts -H 'Accept: application/vnd\\.github\\.raw\\+json' \\| sed -n '1,240p'$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
