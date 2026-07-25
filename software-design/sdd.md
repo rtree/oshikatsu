@@ -35,29 +35,88 @@
 良い漫画を布教したい、という誰かの推しが、良い漫画を読みたいと考える人に届く仕組み。
 Web2のコメントは複数投稿可能であったり、投稿がノーコストであるために場が荒れやすくまた、そもそも主催者によって結果が操作され出版社が売りたい漫画がランキング上位になるなどの特徴があったり、投票期間を恣意的にひろげたり縮めたり可能だがこれができないために良質な本物のコメントが集まりやすい場になるはずである。
 
-なお、Roomはだれでも開設できる＆Hackathonのデモ運営上Room開設用のUIから開設されるが、本番においてはHederaのSchedulerサービスで開設される予定である。
+なお、Roomはだれでも開設できる＆Hackathonのデモ運営上Room開設用のUIから開設されるが、本番においてはHederaのSchedule Serviceで開設される予定である。
 
 ## Hackの観点からみた「Oshikatsu」
 
-> Cryptoを活用したSibil Resistanceな匿名投票システム。WorldID＋HCSの組み合わせによって、投票Windowの間の時刻のみ投票可能＋特定の人物が最後に実施した投票が有効票として扱われる＋一人一票が保証される＋人間であることは保証されているが投票そのものは匿名である（Walletのアドレスは現実世界のIdentityではない）＋集計が第三者でVerifiableで投票の主催者によって結果が操作されていない保証がある＋投票そのものに微量のコストがかかるためランダム投票など意味のない票を排除できる＋公開の場所で誰でも投票を開催できだれでも立候補できる　などの民主主義に必須の公正な投票をオンラインで行うための基盤が実現
+> Cryptoを活用したSybil Resistanceな仮名投票システム。WorldID＋HCSの組み合わせによって、投票Windowの間の時刻のみ投票可能＋特定の人物が最後に実施した投票が有効票として扱われる＋一人一票が保証される＋人間であることは保証されているが投票そのものは仮名である（Walletのアドレスは現実世界のIdentityではない）＋集計が第三者でVerifiableで投票の主催者によって結果が操作されていない保証がある＋投票そのものに微量のコストがかかるためランダム投票など意味のない票を排除できる＋公開の場所で誰でも投票を開催できだれでも立候補できる　などの民主主義に必須の公正な投票をオンラインで行うための基盤が実現
 
 人間証明から投票成立までは、次の一本の経路に固定する。
 
-⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️
-
 ```
 Hedera Wallet（HashPack）を接続
-    -> 投票するRoom、ranking、締切、Wallet accountからballot hashとWorld signalを生成
-    -> そのsignalに束縛されたWorld ID v4の人間証明を一度だけ取得
-    -> World Chain上の確定済みblockを使い、World公式Verifierでproofが有効か投稿前に確認
-    -> 有効なproofと初回ballotを、Wallet本人がHCSへ直接投稿
-    -> Mirror NodeからHCS messageを取得し、分割messageを完全に再構成
-    -> 投票時に固定したWorld Chainの同じblockとVerifierを使い、第三者もproofを再検証
-    -> 同じRoomで同一nullifierから複数の初回投票がある場合、HCS上で最初に成立した一件だけにRoom capabilityを認める
-    -> capability取得後の投票変更・取消ではWorld proofを再取得せず、同じWalletからHCSへ更新eventを投稿
-    -> 同じcapabilityについて、SEAL前に完了したeventのうちHCS上で最後のものを正式状態とする
-    -> SEALのconsensus timestamp以後の投稿を無効とし、投票結果を確定
+  -> Room内で投票する漫画のrankを選択したりコメントしたりしてから、確定ボタンを押す
+  -> Room・コメントhash・Hedera Walletを束縛したballot hashとWorld signalを生成
+  -> そのRoomへの初回投票時に限り、World ID v4による人間証明を取得
+  -> World Chainの確定済みhistorical stateと公式WorldIDVerifierを使い、proofを投稿前に検証
+  -> proofが有効な場合、Wallet本人がraw World proofを含む初回ballotをHCSへ直接投稿
+  -> Mirror NodeからHCS messageを取得し、分割されたmessageを完全に再構成
+  -> 投票時に固定したWorld Chainの同じhistorical stateを使い、第三者もWorld proofを再検証
+  -> 同じRoom・同じWorld nullifierについて、HCS上で最初に成立した初回ballotだけにRoom capabilityを付与
+  -> capability取得後はWorld IDを再度要求せず、同じHedera Walletから投票の更新・取消をHCSへ投稿
+  -> 同じcapabilityについて、SEAL前に完了したHCS eventのうち最後のものを正式な投票状態として採用
+  -> authority認証済みSEALのconsensus timestampでRoomの投票Windowを締め切り、結果を確定
+```
+World IDによる人間証明は、各Roomへの初回投票時に一度だけ要求する。
+
+Roomは裏側ではそれぞれ独立した投票イベントである。そのためWorld IDは、Oshikatsu全体で恒久的なユーザーIDを作るためではなく、各Roomにおいて一人の人間が投票資格を一つだけ取得するために使用する。
+
+Room A
+  -> 初回投票時にWorld IDを一度実施
+  -> Room Aのcapabilityを取得
+  -> 締切までは同じWalletで何度でも更新・取消可能
+
+Room B
+  -> 初回投票時にWorld IDをもう一度実施
+  -> Room Bのcapabilityを取得
+  -> 締切までは同じWalletで何度でも更新・取消可能
+
+同じRoom内でrankingを変更するたびにWorld IDを要求することはない。World proofは初回のRoom capability取得にのみ使用し、その後の操作権はHedera Walletに固定されたRoom capabilityとして扱う。
+
+このprotocolは次の三原則を守る。
+
+1. World IDは、Roomごとの一人一資格を成立させるために使う。
+    各Roomへの初回投票時に一度だけWorld proofを要求する。有効なproofを持つ最初の初回ballotにRoom capabilityを付与し、その後の投票更新・取消にはWorld proofを再要求しない。
+2. World ChainとHederaの責務を分離する。
+    World Chain上の公式WorldIDVerifierは、人間証明とnullifierの正当性を担保する。Hedera Walletは投票者本人の意思を示し、HCSは投稿者、投稿順序、投票更新、取消、締切前後の正本となる。Oshikatsu backendは人間証明のformal validityを署名しない。
+3. 無効なproofと、検証できないproofを区別する。
+    WorldIDVerifierがproofを拒否した場合はINVALIDとする。一方、historical stateを取得できない、archive RPC間でblock hashが一致しないなど、検証を完了できない場合はUNVERIFIABLEとする。UNVERIFIABLEな初回ballotにはRoom capabilityを付与しない。
+
+初回投票の状態遷移は次のとおりとする。
+```
+DRAFT
+  Room内のrankingを編集中
+
+  -> PROOF_ACQUIRED
+     Room・ranking・締切・Walletに束縛されたWorld proofを取得済み
+
+  -> PREFLIGHT_VALID
+     World Chainの確定済みhistorical stateでproofを投稿前検証済み
+
+  -> SUBMITTED
+     Wallet本人が初回ballotをHCSへ送信済み
+
+  -> REASSEMBLED
+     Mirror NodeからHCS messageを完全に再構成済み
+
+  -> VALID
+     World proof、ballot hash、signal、Hedera payer、締切条件がすべて有効
+
+  -> INVALID
+     proof、hash、payer、締切などの検証に失敗
+
+  -> UNVERIFIABLE
+     historical stateなどを取得できず、第三者検証を完了できない
+
+  -> CAPABILITY_GRANTED
+     VALIDであり、同じRoom・同じnullifierの先行capabilityが存在しない
+
+  -> NULLIFIER_CONFLICT
+     VALIDではあるが、同じRoom・同じnullifierのcapabilityがすでに存在
 ```
 
+VALIDは、初回ballotに含まれるWorld proofと投票情報が正しいことを表す。
 
-⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️
+CAPABILITY_GRANTEDは、さらにそのRoomにおける一人一資格の条件を満たし、当該Hedera Walletが投票を更新・取消できる状態になったことを表す。
+
+UI上で「投票済み」と表示するのは、HCSへの送信が完了したSUBMITTED時点ではなく、公開検証とnullifier競合判定が完了したCAPABILITY_GRANTED時点とする。
