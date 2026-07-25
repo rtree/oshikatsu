@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   IDKitRequestWidget,
   proofOfHuman,
@@ -11,12 +11,19 @@ type WorldIdRequest = {
   app_id: `app_${string}`;
   context_token: string;
   rp_context: RpContext;
+  room_id: string;
   signal: string;
+};
+
+type Room = {
+  id: string;
+  name: string;
 };
 
 type VerificationArtifact = {
   protocol: string;
   identifier: string;
+  roomId: string;
   signalMatches: boolean;
 };
 
@@ -27,6 +34,18 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<IDKitResult | null>(null);
   const [artifact, setArtifact] = useState<VerificationArtifact | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomId, setRoomId] = useState("");
+
+  useEffect(() => {
+    void fetch("/api/rooms")
+      .then((response) => response.json())
+      .then(({ rooms: availableRooms }: { rooms: Room[] }) => {
+        setRooms(availableRooms);
+        setRoomId(availableRooms[0]?.id ?? "");
+      })
+      .catch(() => setError("Room一覧を取得できませんでした。"));
+  }, []);
 
   async function startProof() {
     setIsLoading(true);
@@ -35,7 +54,11 @@ export function App() {
     setArtifact(null);
 
     try {
-      const response = await fetch("/api/world-id/request", { method: "POST" });
+      const response = await fetch("/api/world-id/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room_id: roomId }),
+      });
       if (!response.ok) {
         throw new Error("World ID request could not be prepared.");
       }
@@ -72,6 +95,7 @@ export function App() {
     setArtifact({
       protocol: proof.protocol_version,
       identifier: proof.responses[0]?.identifier ?? "unknown",
+      roomId: request?.room_id ?? "unknown",
       signalMatches: verification.signal_matches === true,
     });
   }
@@ -85,13 +109,27 @@ export function App() {
       <section aria-labelledby="proof-heading">
         <h2 id="proof-heading">Proof of Human</h2>
         <p className="lede">World Appで人間性を証明し、投票権を受け取ります。</p>
-        <button type="button" onClick={startProof} disabled={isLoading || isOpen}>
+        <label className="room-field">
+          <span>Room</span>
+          <select value={roomId} onChange={(event) => setRoomId(event.target.value)}>
+            {rooms.map((room) => (
+              <option key={room.id} value={room.id}>
+                {room.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="button" onClick={startProof} disabled={!roomId || isLoading || isOpen}>
           {isLoading ? "準備中..." : "World IDで証明"}
         </button>
         {error && <p className="message error">{error}</p>}
         {result && <p className="message success">人間証明を受け取りました。</p>}
         {artifact && (
           <dl className="artifact">
+            <div>
+              <dt>Room</dt>
+              <dd>{artifact.roomId}</dd>
+            </div>
             <div>
               <dt>Protocol</dt>
               <dd>{artifact.protocol}</dd>

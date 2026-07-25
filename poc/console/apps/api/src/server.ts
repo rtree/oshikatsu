@@ -4,6 +4,7 @@ import { hashSignal } from "@worldcoin/idkit-core/hashing";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { environment, getWorldIdEnvironment } from "./config.js";
+import { getRoomAction, roomIdSchema, rooms } from "./rooms.js";
 
 const app = express();
 
@@ -33,10 +34,15 @@ const verifyRequestSchema = z.object({
   proof: proofSchema,
 });
 
+const proofRequestSchema = z.object({
+  room_id: roomIdSchema,
+});
+
 const proofContextSchema = z.object({
   action: z.string().min(1),
   expires_at: z.number().int(),
   nonce: z.string().min(1),
+  room_id: roomIdSchema,
   signal: z.string().min(1).max(512),
 });
 
@@ -81,24 +87,37 @@ app.get("/api/health", (_request, response) => {
   });
 });
 
-app.post("/api/world-id/request", (_request, response) => {
+app.get("/api/rooms", (_request, response) => {
+  response.json({ rooms });
+});
+
+app.post("/api/world-id/request", (request, response) => {
+  const parsed = proofRequestSchema.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: "Unknown room." });
+    return;
+  }
+
   try {
     const worldId = getWorldIdEnvironment();
+    const roomId = parsed.data.room_id;
+    const action = getRoomAction(roomId);
     const signature = signRequest({
-      action: worldId.action,
+      action,
       signingKeyHex: worldId.signingKey,
       ttl: 300,
     });
-    const signal = `oshikatsu:${randomUUID()}`;
+    const signal = `oshikatsu:${roomId}:${randomUUID()}`;
 
     response.json({
-      action: worldId.action,
+      action,
       app_id: worldId.appId,
       context_token: signProofContext(
         {
-          action: worldId.action,
+          action,
           expires_at: signature.expiresAt,
           nonce: signature.nonce,
+          room_id: roomId,
           signal,
         },
         worldId.signingKey,
@@ -110,6 +129,7 @@ app.post("/api/world-id/request", (_request, response) => {
         expires_at: signature.expiresAt,
         signature: signature.sig,
       },
+      room_id: roomId,
       signal,
     });
   } catch {
@@ -128,6 +148,7 @@ app.post("/api/world-id/verify", async (request, response) => {
     const worldId = getWorldIdEnvironment();
     const { context_token: contextToken, proof, signal } = parsed.data;
     const context = verifyProofContext(contextToken, worldId.signingKey);
+    const expectedAction = context ? getRoomAction(context.room_id) : null;
     const expectedSignalHash = hashSignal(signal);
     const signalMatches = proof.responses.every(
       (proofResponse) => proofResponse.signal_hash === expectedSignalHash,
@@ -136,10 +157,10 @@ app.post("/api/world-id/verify", async (request, response) => {
     if (
       !context ||
       context.expires_at < Math.floor(Date.now() / 1000) ||
-      context.action !== worldId.action ||
+      context.action !== expectedAction ||
       context.nonce !== proof.nonce ||
       context.signal !== signal ||
-      proof.action !== worldId.action ||
+      proof.action !== expectedAction ||
       !signalMatches
     ) {
       response.status(400).json({ success: false, code: "proof_context_mismatch" });
@@ -158,6 +179,7 @@ app.post("/api/world-id/verify", async (request, response) => {
 
     response.status(verificationResponse.status).json({
       ...verification,
+      room_id: context.room_id,
       signal_matches: true,
     });
   } catch {

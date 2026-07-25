@@ -50,6 +50,24 @@ h2 {
   line-height: 1.7;
 }
 
+.room-field {
+  display: grid;
+  gap: 8px;
+  max-width: 320px;
+  margin: 0 0 24px;
+  font-weight: 700;
+}
+
+.room-field select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #8a857b;
+  border-radius: 4px;
+  color: #20201d;
+  background: #fff;
+  font: inherit;
+}
+
 button {
   min-height: 48px;
   padding: 0 24px;

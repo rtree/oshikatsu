@@ -17,7 +17,6 @@ const environmentSchema = z.object({
   WORLD_APP_ID: z.string().startsWith("app_").optional(),
   WORLD_RP_ID: z.string().startsWith("rp_").optional(),
   WORLD_RP_SIGNING_KEY: z.string().min(1).optional(),
-  WORLD_ACTION: z.string().min(1).optional(),
 });
 
 export const environment = environmentSchema.parse(process.env);
@@ -34,14 +33,13 @@ export function getVertexAiEnvironment() {
 }
 
 export function getWorldIdEnvironment() {
-  const { WORLD_ACTION, WORLD_APP_ID, WORLD_RP_ID, WORLD_RP_SIGNING_KEY } = environment;
+  const { WORLD_APP_ID, WORLD_RP_ID, WORLD_RP_SIGNING_KEY } = environment;
 
-  if (!WORLD_ACTION || !WORLD_APP_ID || !WORLD_RP_ID || !WORLD_RP_SIGNING_KEY) {
+  if (!WORLD_APP_ID || !WORLD_RP_ID || !WORLD_RP_SIGNING_KEY) {
     throw new Error("World ID server environment is incomplete.");
   }
 
   return {
-    action: WORLD_ACTION,
     appId: WORLD_APP_ID as `app_${string}`,
     rpId: WORLD_RP_ID,
     signingKey: WORLD_RP_SIGNING_KEY,

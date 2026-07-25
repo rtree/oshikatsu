@@ -144,6 +144,18 @@
         "/^cd /Users/araki/operations/oshikatsu/poc/console && node -e \"\nimport\\('@worldcoin/idkit-server'\\)\\.then\\(m => \\{\n  console\\.log\\('exports:', Object\\.keys\\(m\\)\\);\n  console\\.log\\('signRequest:', typeof m\\.signRequest\\);\n  const sig = m\\.signRequest\\(\\{ action: 'gate-0a', signingKeyHex: '0'\\.repeat\\(64\\), ttl: 300 \\}\\);\n  console\\.log\\('signRequest result keys:', Object\\.keys\\(sig\\)\\);\n  console\\.log\\('signRequest result:', JSON\\.stringify\\(sig, null, 2\\)\\);\n\\}\\)\\.catch\\(e => console\\.error\\(e\\.message\\)\\);\n\" 2>&1$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^npm --prefix /Users/araki/operations/oshikatsu/poc/console run check && npm --prefix /Users/araki/operations/oshikatsu/poc/console run build && npm --prefix /Users/araki/operations/oshikatsu/poc/console run security:check && gcloud builds submit /Users/araki/operations/oshikatsu/poc/console --project ethglobal-lisbon2026-oshikatsu --config /Users/araki/operations/oshikatsu/poc/console/cloudbuild\\.api\\.yaml --format='value\\(id\\)' --quiet$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud run deploy oshikatsu-api --image asia-northeast1-docker\\.pkg\\.dev/ethglobal-lisbon2026-oshikatsu/oshikatsu/oshikatsu-api:59c05bd0-4b63-48b7-a846-d0792a5f9fc3 --region asia-northeast1 --project ethglobal-lisbon2026-oshikatsu --service-account oshikatsu-api@ethglobal-lisbon2026-oshikatsu\\.iam\\.gserviceaccount\\.com --remove-secrets WORLD_ACTION --allow-unauthenticated --port 8080 --cpu 1 --memory 512Mi --min 0 --max 3 --quiet --format='value\\(status\\.latestReadyRevisionName,status\\.url\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npx --yes firebase-tools@15\\.24\\.0 deploy --only hosting --config /Users/araki/operations/oshikatsu/poc/console/firebase\\.json --project ethglobal-lisbon2026-oshikatsu --non-interactive$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
