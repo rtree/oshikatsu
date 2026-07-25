@@ -13,24 +13,16 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
+import { fetchRooms, type Room, type RoomWork } from "./rooms-api";
+import { prepareGroove, waitForGrooveConfirmation, type GrooveStatus } from "./groove-api";
 
 type View = "home" | "room" | "rankings" | "shelf" | "profile";
 
-type Work = {
-  id: string;
-  title: string;
-  chapter: string;
-  cover: string;
-  readers: string;
-};
-
-const works: Work[] = [
-  { id: "level-up", title: "Solo Leveling", chapter: "Chapter 143", cover: "/assets/sample01.webp", readers: "8,241" },
-  { id: "cadet", title: "Teenage Mercenary", chapter: "Chapter 85", cover: "/assets/sample02.webp", readers: "6,903" },
-  { id: "divine", title: "Divine Delivery", chapter: "Chapter 61", cover: "/assets/sample03.webp", readers: "5,778" },
-  { id: "reader", title: "Omniscient Reader", chapter: "Chapter 207", cover: "/assets/sample04.webp", readers: "9,412" },
-  { id: "returner", title: "Returner's Magic", chapter: "Chapter 119", cover: "/assets/sample05.webp", readers: "4,806" },
-];
+type RoomsState =
+  | { status: "loading" }
+  | { status: "ready"; rooms: Room[] }
+  | { status: "empty" }
+  | { status: "error"; message: string };
 
 const reactions = [
   { id: "peak", icon: "/assets/ico08.webp", label: "Peak Chapter", count: "8,321" },
@@ -46,19 +38,44 @@ const reactions = [
 
 export function App() {
   const [view, setView] = useState<View>("home");
-  const [selectedWorkId, setSelectedWorkId] = useState(works[0].id);
+  const [roomsState, setRoomsState] = useState<RoomsState>({ status: "loading" });
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [selectedWorkId, setSelectedWorkId] = useState<string | null>(null);
   const [selectedReaction, setSelectedReaction] = useState(reactions[0].id);
   const [shout, setShout] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [grooveState, setGrooveState] = useState<"idle" | "connecting" | "preparing" | "approving" | "confirming" | "confirmed">("idle");
+  const [grooveError, setGrooveError] = useState<string | null>(null);
+  const [grooveEvidence, setGrooveEvidence] = useState<Extract<GrooveStatus, { status: "CONFIRMED" }> | null>(null);
   const [ballotOpen, setBallotOpen] = useState(false);
-  const [topThree, setTopThree] = useState<string[]>([works[0].id]);
-  const selectedWork = works.find((work) => work.id === selectedWorkId) ?? works[0];
+  const [topThree, setTopThree] = useState<string[]>([]);
+  const rooms = roomsState.status === "ready" ? roomsState.rooms : [];
+  const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
+  const selectedWork = selectedRoom?.works.find((work) => work.id === selectedWorkId) ?? selectedRoom?.works[0] ?? null;
+
+  async function loadRooms(signal?: AbortSignal) {
+    setRoomsState({ status: "loading" });
+    try {
+      const loadedRooms = await fetchRooms(signal);
+      setRoomsState(loadedRooms.length > 0 ? { status: "ready", rooms: loadedRooms } : { status: "empty" });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setRoomsState({ status: "error", message: error instanceof Error ? error.message : "Rooms could not be loaded." });
+    }
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadRooms(controller.signal);
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [view]);
 
   function toggleTopThree() {
+    if (!selectedWork) return;
     setTopThree((current) => {
       if (current.includes(selectedWork.id)) return current.filter((id) => id !== selectedWork.id);
       if (current.length >= 3) return current;
@@ -66,11 +83,47 @@ export function App() {
     });
   }
 
+  function enterRoom(room: Room) {
+    setSelectedRoomId(room.id);
+    setSelectedWorkId(room.works[0]?.id ?? null);
+    setTopThree([]);
+    setView("room");
+  }
+
+  async function submitGroove() {
+    if (!selectedRoom || !selectedWork) return;
+    setGrooveError(null);
+    setGrooveEvidence(null);
+    try {
+      setGrooveState("connecting");
+      const { requireHashPackAccount, submitPreparedGroove } = await import("./hedera-wallet");
+      const account = await requireHashPackAccount();
+      setGrooveState("preparing");
+      const preparation = await prepareGroove({
+        room_id: selectedRoom.id,
+        work_id: selectedWork.id,
+        account_id: account.accountId,
+        reaction_id: selectedReaction,
+        ...(shout ? { shout } : {}),
+      });
+      setGrooveState("approving");
+      const transactionId = await submitPreparedGroove(preparation, account.signerAccountId);
+      setGrooveState("confirming");
+      const evidence = await waitForGrooveConfirmation(preparation.id, transactionId);
+      setGrooveEvidence(evidence);
+      setGrooveState("confirmed");
+    } catch (error) {
+      setGrooveError(error instanceof Error ? error.message : "Groove submission failed.");
+      setGrooveState("idle");
+    }
+  }
+
   return (
     <div className="reader-app">
-      {view === "home" && <HomeView onEnterRoom={() => setView("room")} />}
-      {view === "room" && (
+      {view === "home" && <HomeView roomsState={roomsState} onEnterRoom={enterRoom} onRetry={() => void loadRooms()} />}
+      {view === "room" && selectedRoom && selectedWork && (
         <RoomView
+          room={selectedRoom}
           work={selectedWork}
           selectedWorkId={selectedWorkId}
           topThree={topThree}
@@ -81,13 +134,13 @@ export function App() {
           onToggleTopThree={toggleTopThree}
         />
       )}
-      {view === "rankings" && <RankingsView />}
-      {view === "shelf" && <ShelfView topThree={topThree} />}
+      {view === "rankings" && <RankingsView works={selectedRoom?.works ?? []} roomName={selectedRoom?.name} />}
+      {view === "shelf" && <ShelfView topThree={topThree} works={selectedRoom?.works ?? []} />}
       {view === "profile" && <ProfileView />}
 
       <BottomNav view={view} onNavigate={setView} />
 
-      {dialogOpen && (
+      {dialogOpen && selectedWork && (
         <GrooveDialog
           reaction={selectedReaction}
           shout={shout}
@@ -95,15 +148,19 @@ export function App() {
           onClose={() => setDialogOpen(false)}
           onReactionChange={setSelectedReaction}
           onShoutChange={setShout}
-          onSubmit={() => setDialogOpen(false)}
+          onSubmit={() => void submitGroove()}
+          state={grooveState}
+          error={grooveError}
+          evidence={grooveEvidence}
         />
       )}
-      {ballotOpen && <BallotDialog topThree={topThree} onClose={() => setBallotOpen(false)} />}
+      {ballotOpen && <BallotDialog topThree={topThree} works={selectedRoom?.works ?? []} onClose={() => setBallotOpen(false)} />}
     </div>
   );
 }
 
-function HomeView({ onEnterRoom }: { onEnterRoom: () => void }) {
+function HomeView({ roomsState, onEnterRoom, onRetry }: { roomsState: RoomsState; onEnterRoom: (room: Room) => void; onRetry: () => void }) {
+  const featuredRoom = roomsState.status === "ready" ? roomsState.rooms.find((room) => room.id === "lisbon-main") ?? roomsState.rooms.find((room) => room.phase === "LIVE") : undefined;
   return (
     <main className="page home-page">
       <header className="brand-bar">
@@ -118,7 +175,7 @@ function HomeView({ onEnterRoom }: { onEnterRoom: () => void }) {
           <p className="kicker">WEEKLY CHAPTER DROP · LIVE NOW</p>
           <h1 id="home-title">Read together.<br />Lose it together.</h1>
           <p className="hero-copy">Five new chapters. One shared night. Enter the Room and find the story everyone is shouting about.</p>
-          <div className="hero-actions"><button className="primary-action" type="button" onClick={onEnterRoom}>Join the Groove <Sparkles size={20} /></button><button className="browse-action" type="button" onClick={onEnterRoom}>Browse First</button></div>
+          <div className="hero-actions"><button className="primary-action" type="button" onClick={() => featuredRoom && onEnterRoom(featuredRoom)} disabled={!featuredRoom}>Join the Groove <Sparkles size={20} /></button><button className="browse-action" type="button" onClick={() => document.getElementById("rooms-title")?.scrollIntoView({ behavior: "smooth" })}>Browse First</button></div>
           <div className="live-stats">
             <span><UsersRound size={17} /> 28,431 in the Room</span>
             <span><Clock3 size={17} /> Voting closes in 01:42:18</span>
@@ -131,16 +188,16 @@ function HomeView({ onEnterRoom }: { onEnterRoom: () => void }) {
           <div><p className="kicker">ROOMS</p><h2 id="rooms-title">Tonight's shared moments</h2></div>
           <button className="text-action" type="button">View all</button>
         </div>
-        <button className="room-row live-room" type="button" onClick={onEnterRoom}>
-          <img src="/assets/sample01.webp" alt="Solo Leveling cover" />
-          <span className="room-row-copy"><strong>Weekly Chapter Drop</strong><small>Lineup locked · 5 works</small></span>
-          <span className="phase-badge"><span className="live-dot" /> LIVE</span>
-        </button>
-        <button className="room-row" type="button">
-          <img src="/assets/sample04.webp" alt="Omniscient Reader cover" />
-          <span className="room-row-copy"><strong>Sunday Reader Night</strong><small>Lobby opens in 03:18:42</small></span>
-          <span className="phase-badge upcoming">SOON</span>
-        </button>
+        {roomsState.status === "loading" && <p className="room-list-status" role="status">Loading Rooms...</p>}
+        {roomsState.status === "empty" && <p className="room-list-status">No Rooms are open yet.</p>}
+        {roomsState.status === "error" && <div className="room-list-status" role="alert"><span>Rooms could not be loaded.</span><button className="text-action" type="button" onClick={onRetry}>Retry</button></div>}
+        {roomsState.status === "ready" && roomsState.rooms.map((room) => (
+          <button className={room.phase === "LIVE" ? "room-row live-room" : "room-row"} type="button" onClick={() => onEnterRoom(room)} key={room.id}>
+            <img src={room.works[0]?.cover_url} alt={`${room.works[0]?.title ?? room.name} cover`} />
+            <span className="room-row-copy"><strong>{room.name}</strong><small>Lineup locked · {room.works.length} works</small></span>
+            <span className={room.phase === "LIVE" ? "phase-badge" : "phase-badge upcoming"}>{room.phase === "LIVE" && <span className="live-dot" />} {room.phase}</span>
+          </button>
+        ))}
       </section>
 
       <section className="special-room">
@@ -152,8 +209,9 @@ function HomeView({ onEnterRoom }: { onEnterRoom: () => void }) {
 }
 
 type RoomViewProps = {
-  work: Work;
-  selectedWorkId: string;
+  room: Room;
+  work: RoomWork;
+  selectedWorkId: string | null;
   topThree: string[];
   onBack: () => void;
   onSelectWork: (id: string) => void;
@@ -162,25 +220,25 @@ type RoomViewProps = {
   onToggleTopThree: () => void;
 };
 
-function RoomView({ work, selectedWorkId, topThree, onBack, onSelectWork, onOpenGroove, onReviewBallot, onToggleTopThree }: RoomViewProps) {
+function RoomView({ room, work, selectedWorkId, topThree, onBack, onSelectWork, onOpenGroove, onReviewBallot, onToggleTopThree }: RoomViewProps) {
   const inTopThree = topThree.includes(work.id);
   const topThreeFull = topThree.length >= 3 && !inTopThree;
   return (
     <main className="page room-page">
       <header className="room-header">
         <button className="icon-button" type="button" onClick={onBack} aria-label="Back to Home"><ArrowLeft /></button>
-        <div><p className="kicker">LIVE ROOM</p><strong>Weekly Chapter Drop</strong></div>
-        <span className="phase-badge"><span className="live-dot" /> LIVE</span>
+        <div><p className="kicker">{room.phase} ROOM</p><strong>{room.name}</strong></div>
+        <span className="phase-badge">{room.phase === "LIVE" && <span className="live-dot" />} {room.phase}</span>
       </header>
 
       <div className="room-layout">
         <aside className="lineup-panel" aria-labelledby="lineup-title">
-          <div className="panel-heading"><div><p className="kicker">LINEUP LOCKED</p><h2 id="lineup-title">Tonight's Lineup</h2></div><span>5 works</span></div>
+          <div className="panel-heading"><div><p className="kicker">LINEUP LOCKED</p><h2 id="lineup-title">Tonight's Lineup</h2></div><span>{room.works.length} works</span></div>
           <div className="lineup-list">
-            {works.map((item, index) => (
+            {room.works.map((item, index) => (
               <button className={item.id === selectedWorkId ? "lineup-item selected" : "lineup-item"} type="button" key={item.id} onClick={() => onSelectWork(item.id)}>
                 <span className="lineup-rank">{String(index + 1).padStart(2, "0")}</span>
-                <img src={item.cover} alt={`${item.title} cover`} />
+                <img src={item.cover_url} alt={`${item.title} cover`} />
                 <span><strong>{item.title}</strong><small>{item.chapter}</small></span>
               </button>
             ))}
@@ -188,14 +246,14 @@ function RoomView({ work, selectedWorkId, topThree, onBack, onSelectWork, onOpen
         </aside>
 
         <section className="work-stage" aria-labelledby="work-title">
-          <img className="work-art" src={work.id === "level-up" ? "/assets/level-up.webp" : work.cover} alt={`${work.title} featured artwork`} />
+          <img className="work-art" src={work.hero_url ?? work.cover_url} alt={`${work.title} featured artwork`} />
           <div className="work-vignette" />
           <div className="work-copy">
             <p className="kicker">NOW IN THE GROOVE</p>
             <h1 id="work-title">{work.title}</h1>
-            <p>{work.chapter} · {work.readers} Readers finished</p>
+            <p>{work.chapter} · Activity pending</p>
             <div className="room-facts"><span><UsersRound size={16} /> 28,431 in the Room</span><span><Clock3 size={16} /> Closes in 01:42:18</span></div>
-            <a className="read-link" href="https://www.webtoons.com/" target="_blank" rel="noreferrer"><BookOpen size={18} /> Read Official Chapter</a>
+            <a className="read-link" href={work.reading_url} target="_blank" rel="noreferrer"><BookOpen size={18} /> Read Official Chapter</a>
           </div>
           <div className="work-actions">
             <button className="primary-action" type="button" onClick={onOpenGroove}>Osu! <MessageCircle size={20} /></button>
@@ -223,14 +281,17 @@ function RoomView({ work, selectedWorkId, topThree, onBack, onSelectWork, onOpen
 type GrooveDialogProps = {
   reaction: string;
   shout: string;
-  work: Work;
+  work: RoomWork;
   onClose: () => void;
   onReactionChange: (id: string) => void;
   onShoutChange: (value: string) => void;
   onSubmit: () => void;
+  state: "idle" | "connecting" | "preparing" | "approving" | "confirming" | "confirmed";
+  error: string | null;
+  evidence: Extract<GrooveStatus, { status: "CONFIRMED" }> | null;
 };
 
-function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShoutChange, onSubmit }: GrooveDialogProps) {
+function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShoutChange, onSubmit, state, error, evidence }: GrooveDialogProps) {
   const shoutBytes = new TextEncoder().encode(shout).length;
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const closeDialog = useEffectEvent(onClose);
@@ -265,20 +326,22 @@ function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShou
           ))}
         </div>
         <label className="shout-field"><span>Shout</span><textarea value={shout} onChange={(event) => updateShout(event.target.value)} placeholder="Drop your post-chapter scream..." /><small>{[...shout].length}/200 · {shoutBytes}/600 UTF-8 bytes</small></label>
-        <button className="primary-action full" type="button" onClick={onSubmit} disabled={shoutBytes > 600}>Send to the Groove <Sparkles size={20} /></button>
+        <button className="primary-action full" type="button" onClick={onSubmit} disabled={shoutBytes > 600 || !["idle", "confirmed"].includes(state)}>{state === "idle" ? "Send to the Groove" : state === "connecting" ? "Connect HashPack" : state === "preparing" ? "Preparing canonical event" : state === "approving" ? "Approve in HashPack" : state === "confirming" ? "Confirming on Mirror" : "Confirmed on Hedera"} <Sparkles size={20} /></button>
+        {error && <p className="dialog-note" role="alert">{error}</p>}
+        {evidence && <p className="dialog-note" role="status">Sequence #{evidence.sequence_number} · {evidence.message_bytes} bytes · {evidence.payer_account_id}</p>}
         <p className="dialog-note">Reaction and Shout do not change your formal ballot.</p>
       </section>
     </div>
   );
 }
 
-function BallotDialog({ topThree, onClose }: { topThree: string[]; onClose: () => void }) {
-  const rankedWorks = topThree.map((id) => works.find((work) => work.id === id)).filter((work): work is Work => Boolean(work));
+function BallotDialog({ topThree, works, onClose }: { topThree: string[]; works: RoomWork[]; onClose: () => void }) {
+  const rankedWorks = topThree.map((id) => works.find((work) => work.id === id)).filter((work): work is RoomWork => Boolean(work));
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section className="ballot-dialog" role="dialog" aria-modal="true" aria-labelledby="ballot-title" onMouseDown={(event) => event.stopPropagation()}>
         <header><div><p className="kicker">FORMAL BALLOT</p><h2 id="ballot-title">Review your Top 3</h2></div><button className="icon-button" type="button" onClick={onClose} aria-label="Close ballot review"><X /></button></header>
-        <ol className="ballot-ranking">{rankedWorks.map((work, index) => <li key={work.id}><span>{index + 1}</span><img src={work.cover} alt="" /><div><strong>{work.title}</strong><small>{work.chapter}</small></div></li>)}</ol>
+        <ol className="ballot-ranking">{rankedWorks.map((work, index) => <li key={work.id}><span>{index + 1}</span><img src={work.cover_url} alt="" /><div><strong>{work.title}</strong><small>{work.chapter}</small></div></li>)}</ol>
         {rankedWorks.length < 3 && <p className="ballot-warning">Choose {3 - rankedWorks.length} more work{rankedWorks.length === 2 ? "" : "s"} before casting your ballot.</p>}
         <div className="trust-strip"><span>Orb-verified human</span><span>Unique in this Room</span><span>HashPack signed</span></div>
         <a className={rankedWorks.length === 3 ? "primary-action full" : "primary-action full disabled"} href={rankedWorks.length === 3 ? "https://ethglobal-lisbon2026-oshikatsu.web.app/?wallet-test=1" : undefined}>Continue to verified ballot</a>
@@ -288,22 +351,22 @@ function BallotDialog({ topThree, onClose }: { topThree: string[]; onClose: () =
   );
 }
 
-function RankingsView() {
+function RankingsView({ works, roomName }: { works: RoomWork[]; roomName?: string }) {
   return (
     <main className="page collection-page">
       <header className="collection-header"><p className="kicker">ROOM RESULT</p><h1>Rankings</h1><p>Results become formal only after the Room is sealed and public verification completes.</p></header>
-      <section className="pending-result"><Trophy /><div><p className="kicker gold">SEAL PENDING</p><h2>Weekly Chapter Drop</h2><p>Live standings are hidden until the immutable cutoff is confirmed.</p></div><span>01:42:18</span></section>
-      <section className="ranking-preview" aria-labelledby="ranking-preview-title"><div className="section-heading"><div><p className="kicker">PREVIEW</p><h2 id="ranking-preview-title">Groove, not final votes</h2></div></div>{works.slice(0,3).map((work,index)=><div className="ranking-row" key={work.id}><strong>{index+1}</strong><img src={work.cover} alt="" /><span><b>{work.title}</b><small>{work.readers} Readers finished</small></span><em>Pending</em></div>)}</section>
+      <section className="pending-result"><Trophy /><div><p className="kicker gold">SEAL PENDING</p><h2>{roomName ?? "No Room selected"}</h2><p>Live standings are hidden until the immutable cutoff is confirmed.</p></div><span>Pending</span></section>
+      <section className="ranking-preview" aria-labelledby="ranking-preview-title"><div className="section-heading"><div><p className="kicker">PREVIEW</p><h2 id="ranking-preview-title">Groove, not final votes</h2></div></div>{works.slice(0,3).map((work,index)=><div className="ranking-row" key={work.id}><strong>{index+1}</strong><img src={work.cover_url} alt="" /><span><b>{work.title}</b><small>Activity pending</small></span><em>Pending</em></div>)}</section>
     </main>
   );
 }
 
-function ShelfView({ topThree }: { topThree: string[] }) {
-  const selected = topThree.map((id) => works.find((work) => work.id === id)).filter((work): work is Work => Boolean(work));
+function ShelfView({ topThree, works }: { topThree: string[]; works: RoomWork[] }) {
+  const selected = topThree.map((id) => works.find((work) => work.id === id)).filter((work): work is RoomWork => Boolean(work));
   return (
     <main className="page collection-page">
       <header className="collection-header"><p className="kicker">MY OSHIKATSU</p><h1>My Shelf</h1><p>Your current Top 3 stays editable until the Room deadline.</p></header>
-      <section className="shelf-grid" aria-label="My Top 3">{[0,1,2].map((slot)=>{const work=selected[slot];return <article className="shelf-slot" key={slot}>{work?<><img src={work.cover} alt={`${work.title} cover`} /><span>#{slot+1}</span><strong>{work.title}</strong><small>{work.chapter}</small></>:<div className="empty-cover"><BookOpen /></div>}</article>})}</section>
+      <section className="shelf-grid" aria-label="My Top 3">{[0,1,2].map((slot)=>{const work=selected[slot];return <article className="shelf-slot" key={slot}>{work?<><img src={work.cover_url} alt={`${work.title} cover`} /><span>#{slot+1}</span><strong>{work.title}</strong><small>{work.chapter}</small></>:<div className="empty-cover"><BookOpen /></div>}</article>})}</section>
       <section className="history-strip"><p className="kicker">ROOM HISTORY</p><h2>Tonight is your first shared Room</h2><p>Verified ballot history will appear after capability is granted.</p></section>
     </main>
   );

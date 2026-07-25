@@ -79,7 +79,27 @@ await check("deployed health", async () => {
 const roomEvidence = await check("Room durable create and retrieval", async () => {
   const createBody = {
     name: `Acceptance Room ${runId}`,
-    action_description: `Strict production acceptance ${runId}`,
+    opens_at: new Date(Date.now() - 60_000).toISOString(),
+    deadline: new Date(Date.now() + 86_400_000).toISOString(),
+    topic_id: "0.0.9745676",
+    works: [
+      {
+        id: "acceptance-a",
+        title: "Acceptance Work A",
+        chapter: "Chapter 1",
+        cover_url: "https://oshikatsu-reader-lisbon26.web.app/assets/sample01.webp",
+        hero_url: null,
+        reading_url: "https://www.webtoons.com/",
+      },
+      {
+        id: "acceptance-b",
+        title: "Acceptance Work B",
+        chapter: "Chapter 2",
+        cover_url: "https://oshikatsu-reader-lisbon26.web.app/assets/sample02.webp",
+        hero_url: null,
+        reading_url: "https://www.webtoons.com/",
+      },
+    ],
     acceptance_run_id: runId,
   };
   const created = await request("/api/rooms", {
@@ -108,14 +128,16 @@ if (roomEvidence) evidence.room = roomEvidence;
 
 const grooveEvidence = await check("Groove HCS and Mirror correlation", async () => {
   const submission = await readJsonFixture("ACCEPTANCE_GROOVE_EVIDENCE_FILE");
-  for (const key of ["topic_id", "transaction_id", "payer_account_id", "message_base64"]) {
+  for (const key of ["prepare_id", "topic_id", "transaction_id", "payer_account_id", "message_base64"]) {
     assert(typeof submission[key] === "string" && submission[key], `Groove evidence lacks ${key}.`);
   }
   const expectedBytes = Buffer.from(submission.message_base64, "base64");
   assert(expectedBytes.length > 0 && expectedBytes.length <= 900, "Groove message must be 1-900 bytes.");
 
   const transactionId = encodeURIComponent(submission.transaction_id);
-  const status = await request(`/api/groove/status/${transactionId}`);
+  const status = await request(
+    `/api/groove/status/${transactionId}?prepare_id=${encodeURIComponent(submission.prepare_id)}`,
+  );
   assert(status.body.status === "CONFIRMED", "API did not report Groove as CONFIRMED.");
   assert(status.body.payer_account_id === submission.payer_account_id, "API Groove payer mismatch.");
 
@@ -133,7 +155,11 @@ const grooveEvidence = await check("Groove HCS and Mirror correlation", async ()
       Buffer.from(message.message, "base64").equals(expectedBytes),
   );
   assert(match, "Mirror has no exact topic/payer/message match.");
-  assert(match.chunk_info === null, "Groove evidence was chunked; one HCS message is required.");
+  assert(
+    match.chunk_info === null ||
+      (match.chunk_info.number === 1 && match.chunk_info.total === 1),
+    "Groove evidence used more than one HCS message.",
+  );
   return {
     consensus_timestamp: match.consensus_timestamp,
     message_bytes: expectedBytes.length,
