@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   BookOpen,
@@ -132,12 +132,12 @@ function HomeView({ onEnterRoom }: { onEnterRoom: () => void }) {
           <button className="text-action" type="button">View all</button>
         </div>
         <button className="room-row live-room" type="button" onClick={onEnterRoom}>
-          <img src="/assets/sample01.png" alt="Solo Leveling cover" />
+          <img src="/assets/sample01.webp" alt="Solo Leveling cover" />
           <span className="room-row-copy"><strong>Weekly Chapter Drop</strong><small>Lineup locked · 5 works</small></span>
           <span className="phase-badge"><span className="live-dot" /> LIVE</span>
         </button>
         <button className="room-row" type="button">
-          <img src="/assets/sample04.png" alt="Omniscient Reader cover" />
+          <img src="/assets/sample04.webp" alt="Omniscient Reader cover" />
           <span className="room-row-copy"><strong>Sunday Reader Night</strong><small>Lobby opens in 03:18:42</small></span>
           <span className="phase-badge upcoming">SOON</span>
         </button>
@@ -233,20 +233,21 @@ type GrooveDialogProps = {
 function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShoutChange, onSubmit }: GrooveDialogProps) {
   const shoutBytes = new TextEncoder().encode(shout).length;
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const closeDialog = useEffectEvent(onClose);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeButtonRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") closeDialog();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [onClose]);
+  }, []);
 
   function updateShout(value: string) {
     onShoutChange([...value].slice(0, 200).join(""));
