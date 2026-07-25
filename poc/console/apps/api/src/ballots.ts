@@ -5,7 +5,7 @@ import { domainHash, encodeBallotEvent } from "@oshikatsu/protocol";
 import { z } from "zod";
 import { getWorldIdEnvironment } from "./config.js";
 import { getFirestore } from "./firestore.js";
-import { getRoom, getRoomAction, roomIdSchema } from "./rooms.js";
+import { getRoom, roomIdSchema } from "./rooms.js";
 
 const accountIdSchema = z.string().regex(/^0\.0\.\d+$/);
 const nomineeIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{1,31}$/);
@@ -53,11 +53,15 @@ function assertNominees(roomWorks: Array<{ id: string }>, nominees: [string, str
   }
 }
 
+function getBallotAction(roomId: string) {
+  return `oshikatsu-ballot-v1:${roomId}`;
+}
+
 export async function createBallotRequest(input: z.infer<typeof ballotRequestSchema>) {
   const room = await getRoom(input.room_id);
   if (!room || room.phase !== "LIVE") throw new Error("Room is not live.");
   assertNominees(room.works, input.nominee_ids);
-  const world = getWorldIdEnvironment(); const action = getRoomAction(room.id);
+  const world = getWorldIdEnvironment(); const action = getBallotAction(room.id);
   const signature = signRequest({ action, signingKeyHex: world.signingKey, ttl: 300 });
   const intentHash = domainHash("oshikatsu:ballot-intent:v1", { r: room.id, m: room.manifest_hash, n: input.nominee_ids, a: input.account_id });
   const signal = `oshikatsu:ballot:v1:${intentHash}`;
