@@ -9,6 +9,8 @@
     "check": "tsc -b --pretty false"
   },
   "dependencies": {
+    "@worldcoin/idkit": "^4.2.1",
+    "@worldcoin/idkit-core": "^4.2.2",
     "firebase": "^12.16.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

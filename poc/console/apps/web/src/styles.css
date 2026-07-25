@@ -43,24 +43,62 @@ h2 {
   letter-spacing: 0;
 }
 
-dl {
-  margin: 0;
+.lede {
+  max-width: 30rem;
+  margin: 0 0 32px;
+  color: #68645d;
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+button {
+  min-height: 48px;
+  padding: 0 24px;
+  border: 1px solid #20201d;
+  border-radius: 4px;
+  color: #f6f3ed;
+  background: #20201d;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.message {
+  margin: 20px 0 0;
+  font-weight: 700;
+}
+
+.error {
+  color: #b3261e;
+}
+
+.success {
+  color: #176b3a;
+}
+
+.artifact {
+  margin: 32px 0 0;
   border-top: 1px solid #cbc6bc;
 }
 
-dl div {
+.artifact div {
   display: grid;
   grid-template-columns: 120px 1fr;
   gap: 24px;
-  padding: 16px 0;
+  padding: 12px 0;
   border-bottom: 1px solid #cbc6bc;
 }
 
-dt {
+.artifact dt {
   color: #68645d;
 }
 
-dd {
+.artifact dd {
   margin: 0;
-  font-weight: 600;
+  font-weight: 700;
 }

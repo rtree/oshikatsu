@@ -14,6 +14,10 @@ const environmentSchema = z.object({
   WEB_ORIGIN: z.string().url().default("http://localhost:5173"),
   GOOGLE_CLOUD_PROJECT: z.string().min(1).optional(),
   VERTEX_AI_LOCATION: z.string().min(1).default("asia-northeast1"),
+  WORLD_APP_ID: z.string().startsWith("app_").optional(),
+  WORLD_RP_ID: z.string().startsWith("rp_").optional(),
+  WORLD_RP_SIGNING_KEY: z.string().min(1).optional(),
+  WORLD_ACTION: z.string().min(1).optional(),
 });
 
 export const environment = environmentSchema.parse(process.env);
@@ -26,5 +30,20 @@ export function getVertexAiEnvironment() {
   return {
     project: environment.GOOGLE_CLOUD_PROJECT,
     location: environment.VERTEX_AI_LOCATION,
+  };
+}
+
+export function getWorldIdEnvironment() {
+  const { WORLD_ACTION, WORLD_APP_ID, WORLD_RP_ID, WORLD_RP_SIGNING_KEY } = environment;
+
+  if (!WORLD_ACTION || !WORLD_APP_ID || !WORLD_RP_ID || !WORLD_RP_SIGNING_KEY) {
+    throw new Error("World ID server environment is incomplete.");
+  }
+
+  return {
+    action: WORLD_ACTION,
+    appId: WORLD_APP_ID as `app_${string}`,
+    rpId: WORLD_RP_ID,
+    signingKey: WORLD_RP_SIGNING_KEY,
   };
 }

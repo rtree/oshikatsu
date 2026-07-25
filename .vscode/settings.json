@@ -76,6 +76,74 @@
         "/^git ls-files --error-unmatch poc/\\.env >/dev/null 2>&1; ret=\\$\\?; \\[\\[ \\$ret -eq 0 \\]\\] && print TRACKED \\|\\| print NOT_TRACKED; git check-ignore -v poc/\\.env; \\[\\[ -e poc/console/\\.env \\]\\] && print 'old-env-still-exists' \\|\\| print 'old-env-removed'$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^for key in WORLD_APP_ID WORLD_RP_ID WORLD_RP_SIGNING_KEY; do if grep -Eq \"\\^\\$\\{key\\}=\\.\\+\" /Users/araki/operations/oshikatsu/poc/\\.env; then print \"\\$key=SET\"; else print \"\\$key=MISSING\"; fi; done\nprintf 'gcloud-project='; project=\\$\\(gcloud config get-value project 2>/dev/null\\); \\[\\[ -n \"\\$project\" && \"\\$project\" != '\\(unset\\)' \\]\\] && print SET \\|\\| print MISSING\nprintf 'adc='; gcloud auth application-default print-access-token >/dev/null 2>&1 && print SET \\|\\| print MISSING$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm install @worldcoin/idkit@4\\.2\\.1 @worldcoin/idkit-core@4\\.2\\.2 --workspace @oshikatsu/web && npm install @worldcoin/idkit-server@1\\.1\\.1 --workspace @oshikatsu/api$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^printf 'gcloud-project='; gcloud config get-value project 2>/dev/null\nprintf 'adc-quota-project='; python3 -c 'import json,os; p=os\\.path\\.expanduser\\(\"~/\\.config/gcloud/application_default_credentials\\.json\"\\); print\\(json\\.load\\(open\\(p\\)\\)\\.get\\(\"quota_project_id\",\"\\(unset\\)\"\\)\\)' 2>/dev/null \\|\\| print '\\(unavailable\\)'\nprintf 'firebase-project='; \\[\\[ -f \\.firebaserc \\]\\] && sed -n 's/\\.\\*\"default\": \\*\"\\\\\\(\\[\\^\"\\]\\*\\\\\\)\"\\.\\*/\\\\1/p' \\.firebaserc \\|\\| print '\\(unset\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud projects describe ethglobal-lisbon2026-oshikatsu --format='value\\(projectId,projectNumber,lifecycleState\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud config set project ethglobal-lisbon2026-oshikatsu$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud auth application-default set-quota-project ethglobal-lisbon2026-oshikatsu$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^grep '\\^GOOGLE_CLOUD_PROJECT=' /Users/araki/operations/oshikatsu/poc/\\.env \\|\\| true$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^printf 'active='; gcloud config get-value project 2>/dev/null\nprintf 'quota='; python3 -c 'import json,os; p=os\\.path\\.expanduser\\(\"~/\\.config/gcloud/application_default_credentials\\.json\"\\); print\\(json\\.load\\(open\\(p\\)\\)\\.get\\(\"quota_project_id\",\"\\(unset\\)\"\\)\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^awk -F= 'NF \\{ print NR \":\" \\$1 \\}' /Users/araki/operations/oshikatsu/poc/\\.env$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node --import tsx -e \"import\\('\\./apps/api/src/config\\.ts'\\)\\.then\\(\\(\\{ loadEnvironment, getVertexAIConfig \\}\\) => \\{ const config = getVertexAIConfig\\(loadEnvironment\\(\\)\\); console\\.log\\(config\\.project\\); console\\.log\\(config\\.location\\); \\}\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node --import tsx -e \"import\\('\\./apps/api/src/config\\.ts'\\)\\.then\\(\\(\\{ getVertexAiEnvironment \\}\\) => \\{ const config = getVertexAiEnvironment\\(\\); console\\.log\\('api=' \\+ config\\.project\\); console\\.log\\('location=' \\+ config\\.location\\); \\}\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^printf 'gcloud='; gcloud config get-value project 2>/dev/null\nprintf 'adc='; python3 -c 'import json,os; p=os\\.path\\.expanduser\\(\"~/\\.config/gcloud/application_default_credentials\\.json\"\\); print\\(json\\.load\\(open\\(p\\)\\)\\.get\\(\"quota_project_id\",\"\\(unset\\)\"\\)\\)'\nprintf 'firebase='; sed -n 's/\\.\\*\"default\": \\*\"\\\\\\(\\[\\^\"\\]\\*\\\\\\)\"\\.\\*/\\\\1/p' \\.firebaserc\nprintf 'number='; gcloud projects describe ethglobal-lisbon2026-oshikatsu --format='value\\(projectNumber\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git check-ignore -v poc/\\.env poc/console/\\.firebaserc && git status --short -- poc/\\.env poc/console/\\.firebaserc poc/\\.env\\.example poc/console/\\.firebaserc\\.example$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm install @worldcoin/idkit-core@4\\.2\\.2 --workspace @oshikatsu/api$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm run dev --workspace @oshikatsu/api$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm --prefix /Users/araki/operations/oshikatsu/poc/console run dev --workspace @oshikatsu/api$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd /Users/araki/operations/oshikatsu/poc/console && node -e \"\nimport\\('@worldcoin/idkit-server'\\)\\.then\\(m => \\{\n  console\\.log\\('exports:', Object\\.keys\\(m\\)\\);\n  console\\.log\\('signRequest:', typeof m\\.signRequest\\);\n  const sig = m\\.signRequest\\(\\{ action: 'gate-0a', signingKeyHex: '0'\\.repeat\\(64\\), ttl: 300 \\}\\);\n  console\\.log\\('signRequest result keys:', Object\\.keys\\(sig\\)\\);\n  console\\.log\\('signRequest result:', JSON\\.stringify\\(sig, null, 2\\)\\);\n\\}\\)\\.catch\\(e => console\\.error\\(e\\.message\\)\\);\n\" 2>&1$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
