@@ -218,16 +218,9 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
     - 内部にある部品
         - ▶︎推し活を始める: ボタン。これを押すとWallet登録画面に進む。Wallet登録後は自分の読んでいる作品を登録したのち、ホーム画面に戻ってくる
 
-- 領域名：Roomの入口
-    - 領域の目的や機能：初回登録以降に表示される。Roomのタイトル、現在のphase（開催時刻までのカウントダウンなど）を示す。複数並んでいて、現在Voteを受付中のRoomが一番上。次にこれから始まる開始前のRoomが並んでいる
-    - 領域のデザインのテイスト：新刊発売日の高揚感。ライブ会場のイメージ
-    - 内部にある部品
-        - Room: 
-            - Roomタイトル：今週参加する共有時間を識別する。例：`Weekly Chapter Drop`
-            - Roomに入る：Roomへのprimary CTA。phaseに応じて`Join the Groove`、`Enter the Lobby`、`Replay the Room`を切り替える
-            - Groove Level：現在のReactionとShoutの勢いを示す
-            - Fans in the Lobby：Roomを閲覧中の規模を示すpresence count
-            - Vote deadline：`Voting Closes In`として投票期限を示す
+- 領域名：Room一覧
+    - Room名と現在の状況を示すボタンが、複数並んでいて、現在Voteを受付中のRoomが一番上。次にこれから始まる開始前のRoomが並んでいる
+    - 押すとそのRoom（ライブ会場）に入る
 
 - 領域名：SpecialRoomの入口
     - 領域の目的や機能：漫画文化へ貢献したReaderを候補として見て、人への推しをformal ballotとして表す。ソシャゲの期間限定イベントのようにホームに表示される。通常Roomとは別領域にこれが表示される
@@ -245,21 +238,30 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 この画面ですること：
     推し活のライブ会場
 
-- 領域名：Room countdown
-    - 領域の目的や機能：phaseと残り時間を示す
-    - 領域のデザインのテイスト：ライブイベントの開演時計。時間を第一視線に置く
+- 領域名：Roomの入口
+    - 領域の目的や機能：初回登録以降に表示される。Roomのタイトル（本日の推し活）、開幕までを表示する。Roomが開くのを待つ画面。「本日の推し活、開幕まで」「みんな、準備はいいか?」との表示があり高揚させる。ライブイベントの開演時計。時間を第一視線に置く
+    - 領域のデザインのテイスト：新刊発売日の高揚感。ライブ会場のイメージ
     - 内部にある部品
-        - Phase表示：internal stateを`Nominations Open`、`Live Now`、`Ballots Closed`、`Results Ready`へ変換する
-        - Countdown：`Room Opens In`または`Ballots Close In`として次のphaseまでを示す
-        - Room入場：`Enter the Room`でライブRoomへ進む
+        - Roomタイトル：今週参加する共有時間を識別する。例：`Weekly Chapter Drop`
+        - Roomに入る：Roomへのprimary CTA。phaseに応じて`Join the Groove`、`Enter the Lobby`、`Replay the Room`を切り替える。中に入るとRoom内部を表示する
+        - Groove Level：現在のReactionとShoutの勢いを示す
+        - Fans in the Lobby：Roomを閲覧中の規模を示すpresence count
+        - Vote deadline：`Voting Closes In`として投票期限を示す
 
-- 領域名：Lineup
-    - 領域の目的や機能：manifestに固定された作品を一覧する
-    - 領域のデザインのテイスト：週刊誌の目次と書店の新刊台を組み合わせる
-    - 内部にある部品
-        - Lineup：cover stackと`Tonight's Lineup`で候補作品の全体像を伝える
-        - Locked state：`Lineup Locked`を表示する
-        - Manifest識別子：`Room Details`内でcandidate-set hashとmanifest hashを確認できるようにする
+- 領域名：Room内部
+    - 領域名：VotingLineup
+        - 領域の目的や機能：manifestに固定された作品を一覧する
+        - 領域のデザインのテイスト：週刊誌の目次と書店の新刊台を組み合わせる
+        - 内部にある部品
+            - Lineup：cover stackと`Tonight's Lineup`で候補作品の全体像を伝える
+            - Locked state：`Lineup Locked`を表示する
+            - 推す：推すボタン。この作品へ投票・コメントするものを選択する
+    - 領域名：VotingDialogue
+        - 領域の目的や機能：実際に感情のスタンプを選んで叫びを記入するダイアログ
+        - 領域のデザインのテイスト：この会の感情をスタンプで表そう
+        - 内部にある部品
+            - スタンプ
+            - 
 
 ### 画面名：Nominee受付
 
@@ -394,118 +396,104 @@ deadlineまでの最後の意思を集計したrankingと、そのRoomのGrooveW
         - Verification summary：`Verified Ballots`、cutoff、accepted ballot数を要約する
         - Verify Results：manifest hash、result hash、public replayへ進む
 
-領域名：Room replay
-
-- 領域の目的や機能：GrooveWave、主要emotion、転換点を時間順に振り返る
-- 領域のデザインのテイスト：ライブのafter movieのような余韻
-- 内部にある部品
-   - Timeline：Room開始からdeadlineまでの熱を示す
-   - Turning points：反応とrankingが動いた瞬間を示す
-   - 次の推し：Reader profileと実績を通じて新しい作品へ進む
+- 領域名：Room replay
+    - 領域の目的や機能：GrooveWave、主要emotion、転換点を時間順に振り返る
+    - 領域のデザインのテイスト：ライブのafter movieのような余韻
+    - 内部にある部品
+        - Timeline：Room開始からdeadlineまでの熱を示す
+        - Turning points：反応とrankingが動いた瞬間を示す
+        - 次の推し：Reader profileと実績を通じて新しい作品へ進む
 
 ### 画面名：Special Room
 
 この画面ですること：
 
+- 領域名：Special Room hero
+    - 領域の目的や機能：賞、開催期間、選考テーマを伝える
+    - 領域のデザインのテイスト：
+    - 内部にある部品
 
-領域名：Special Room hero
-
-- 領域の目的や機能：賞、開催期間、選考テーマを伝える
-- 領域のデザインのテイスト：
-- 内部にある部品
-
-領域名：Reader Nominee
-
-- 領域の目的や機能：候補者と公開実績を比較し、一人を選ぶ
-- 領域のデザインのテイスト：人物の物語と実績を同時に見せる
-- 内部にある部品
-   - Nominee profile：仮名、実績、推してきた作品を示す
-   - Public Contribution Signals：根拠eventへ辿れる候補理由を示す
-   - Voter selection：投票対象を一人選ぶ
-   - Formal action：`Vote for This Finalist`からWorld proofとWallet署名へ進む
+- 領域名：Reader Nominee
+    - 領域の目的や機能：候補者と公開実績を比較し、一人を選ぶ
+    - 領域のデザインのテイスト：人物の物語と実績を同時に見せる
+    - 内部にある部品
+        - Nominee profile：仮名、実績、推してきた作品を示す
+        - Public Contribution Signals：根拠eventへ辿れる候補理由を示す
+        - Voter selection：投票対象を一人選ぶ
+        - Formal action：`Vote for This Finalist`からWorld proofとWallet署名へ進む
 
 
 ### 画面名：Wallet接続・World Proof進行
 
 この画面ですること：
-Readerがformal ballotとRoom capabilityを自分のHedera accountへ結びつける。
-WalletはPoCではHashPack一択とする。この画面は専用にあるというよりもWallet接続や人間証明がVoteやNominateの署名に必要なときに必要に応じて呼び出される画面。初回ballotに必要なProof of Humanを取得し、World anchor finalityと公開検証の進行をReaderへ伝える。
+    Readerがformal ballotとRoom capabilityを自分のHedera accountへ結びつける。
+    WalletはPoCではHashPack一択とする。この画面は専用にあるというよりもWallet接続や人間証明がVoteやNominateの署名に必要なときに必要に応じて呼び出される画面。初回ballotに必要なProof of Humanを取得し、World anchor finalityと公開検証の進行をReaderへ伝える。
 
-領域名：Wallet選択
+- 領域名：Wallet選択
+    - 領域の目的や機能：HashPackと接続中accountを示す。Wallet接続が必要なタイミングで表示され、Worldによる人間認証やVoteの署名をKickする
+    - 領域のデザインのテイスト：静かで明快。自己管理する鍵への信頼感を出す。でもベースはライブ会場
+    - 内部にある部品
+        - HashPack identity：公式brand assetと`HashPack`を示す
+        - Connected account：接続後にHedera account IDとnetworkを確認する
+        - Connect action：`Connect HashPack`でWallet側の承認へ進む
+        - Browse action：署名不要の閲覧へ戻る`Browse Without Connecting`
 
-- 領域の目的や機能：HashPackと接続中accountを示す。Wallet接続が必要なタイミングで表示され、Worldによる人間認証やVoteの署名をKickする
-- 領域のデザインのテイスト：静かで明快。自己管理する鍵への信頼感を出す。でもベースはライブ会場
-- 内部にある部品
-   - HashPack identity：公式brand assetと`HashPack`を示す
-   - Connected account：接続後にHedera account IDとnetworkを確認する
-   - Connect action：`Connect HashPack`でWallet側の承認へ進む
-   - Browse action：署名不要の閲覧へ戻る`Browse Without Connecting`
+- 領域名：Proof request
+    - 領域の目的や機能：Room固有action、ballot signal、World App handoffを扱う
+    - 領域のデザインのテイスト：privacyと進行状況を中心にした静かな画面
+    - 内部にある部品
+        - Proof of Human説明：`One human. One spot in this Room.`で一人一資格の意味を伝える
+        - World App action：`Verify with World ID`でproof requestへ進む
+        - Trust summary：`Orb-verified human`、`Unique in this Room`、`Privacy-preserving proof`
+        - Privacy details：World ID上のidentityは公開せず、proof、nullifier、Room-bound inputsが公開検証されることを示す
 
-領域名：Proof request
-
-- 領域の目的や機能：Room固有action、ballot signal、World App handoffを扱う
-- 領域のデザインのテイスト：privacyと進行状況を中心にした静かな画面
-- 内部にある部品
-   - Proof of Human説明：`One human. One spot in this Room.`で一人一資格の意味を伝える
-   - World App action：`Verify with World ID`でproof requestへ進む
-   - Trust summary：`Orb-verified human`、`Unique in this Room`、`Privacy-preserving proof`
-   - Privacy details：World ID上のidentityは公開せず、proof、nullifier、Room-bound inputsが公開検証されることを示す
-
-領域名：初回ballot status
-
-- 領域の目的や機能：状態遷移を一つの進行として示す
-- 領域のデザインのテイスト：technical logよりも旅程表示に近いstepper
-- 内部にある部品
-   - Proof acquired：World proof取得を示す
-   - HCS submitted：Wallet署名済み投稿を示す
-   - Message reassembled：logical event完成を示す
-   - World finality：anchor block finalityを示す
-   - Capability granted：Room capability成立を示す
-
+- 領域名：初回ballot status
+    - 領域の目的や機能：状態遷移を一つの進行として示す
+    - 領域のデザインのテイスト：technical logよりも旅程表示に近いstepper
+    - 内部にある部品
+        - Proof acquired：World proof取得を示す
+        - HCS submitted：Wallet署名済み投稿を示す
+        - Message reassembled：logical event完成を示す
+        - World finality：anchor block finalityを示す
+        - Capability granted：Room capability成立を示す
 
 ### 画面名：My Oshikatsu
 
 この画面ですること：
-自分の参加Room、推した作品、獲得実績を見返し、推しの近いReaderから次の漫画を見つける。
-これは画面下のNavigationから移動してくる
+    自分の参加Room、推した作品、獲得実績を見返し、推しの近いReaderから次の漫画を見つける。
+    これは画面下のNavigationから移動してくる
 
-領域名：仮名profile
+- 領域名：仮名profile
+    - 領域の目的や機能：Hedera account、表示名、参加実績を示す
+    - 領域のデザインのテイスト：推し活手帳。収集物と履歴を整然と並べる
+    - 内部にある部品
+        - Account identity：仮名accountを示す
+        - Badge shelf：`Room Winner`、`Hidden Gem Scout`、`Long-Run Supporter`、`Rooms Joined`を示す
+        - My Shelf：登録作品をcover gridで示す
+        - Room History：参加RoomとTop 3を示す
 
-- 領域の目的や機能：Hedera account、表示名、参加実績を示す
-- 領域のデザインのテイスト：推し活手帳。収集物と履歴を整然と並べる
-- 内部にある部品
-   - Account identity：仮名accountを示す
-   - Badge shelf：`Room Winner`、`Hidden Gem Scout`、`Long-Run Supporter`、`Rooms Joined`を示す
-   - My Shelf：登録作品をcover gridで示す
-   - Room History：参加RoomとTop 3を示す
-
-領域名：次の推し
-
-- 領域の目的や機能：推しの近いReaderと、そのReaderが推す漫画を示す
-- 領域のデザインのテイスト：人から本へ辿る推薦棚
-- 内部にある部品
-   - Similar Reader：推し傾向の近い仮名profileを示す
-   - Recommended work：そのReaderが推した作品を示す
-   - 作品へ進む：reading locationまたは次回Roomへ進む
+- 領域名：次の推し
+    - 領域の目的や機能：推しの近いReaderと、そのReaderが推す漫画を示す
+    - 領域のデザインのテイスト：人から本へ辿る推薦棚
+    - 内部にある部品
+        - Similar Reader：推し傾向の近い仮名profileを示す
+        - Recommended work：そのReaderが推した作品を示す
+        - 作品へ進む：reading locationまたは次回Roomへ進む
 
 ### 画面名：My Shelf setup
 
 この画面ですること：
-Readerがすでに好きな漫画を選び、初回Homeと推薦のcold startを改善する。選択はsocial graph用のpreferenceであり、formal ballotではない。
+    Readerがすでに好きな漫画を選び、初回Homeと推薦のcold startを改善する。選択はsocial graph用のpreferenceであり、formal ballotではない。My Shelfの選択をWorld proof、Room capability、一人一票判定へ使わない。
 
-領域名：Starter shelf
-
-- 領域の目的や機能：coverを見ながら複数作品を選び、My Shelfへ保存する
-- 領域のデザインのテイスト：`imggen/image-1784954468846.png`のcover-first gridを使い、選択済み状態を明確にする
-- 内部にある部品
-    - Heading：`Pick the manga you already love`
-    - Work cover：titleとcoverを示す
-    - Selection control：`Add to My Shelf` / `On My Shelf`を切り替える
-    - Skip：`Set Up Later`
-    - Save：`Save My Shelf`
-
-My Shelfの選択をWorld proof、Room capability、一人一票判定へ使わない。
-
+- 領域名：Starter shelf
+    - 領域の目的や機能：coverを見ながら複数作品を選び、My Shelfへ保存する
+    - 領域のデザインのテイスト：`imggen/image-1784954468846.png`のcover-first gridを使い、選択済み状態を明確にする
+    - 内部にある部品
+        - Heading：`Pick the manga you already love`
+        - Work cover：titleとcoverを示す
+        - Selection control：`Add to My Shelf` / `On My Shelf`を切り替える
+        - Skip：`Set Up Later`
+        - Save：`Save My Shelf`
 
 ## UI: Fandom vocabulary and Visual direction
 
