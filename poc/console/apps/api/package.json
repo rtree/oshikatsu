@@ -10,6 +10,7 @@
     "check": "tsc -p tsconfig.json --noEmit --pretty false"
   },
   "dependencies": {
+    "@google-cloud/firestore": "^8.2.0",
     "@google/genai": "^2.13.0",
     "@hiero-ledger/sdk": "^2.86.2",
     "@worldcoin/idkit-core": "^4.2.2",
