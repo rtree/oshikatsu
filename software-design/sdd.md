@@ -192,7 +192,7 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 
 ## Reader App
 
-### 画面名：Oshikatsu入口
+### 画面名：ホーム
 
 この画面ですること：
 次のRoomが開く時間と参加できる漫画の気配を伝え、読者を共有時間へ招く。
@@ -200,12 +200,9 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 領域名：Roomの入口
 
 - 領域の目的や機能：Roomのタイトル、現在のphase（開催時刻までのカウントダウンなど）を示す
-- 領域のデザインのテイスト：新刊発売日の高揚感。漫画のビジュアルを主役にした大胆な構成
+- 領域のデザインのテイスト：新刊発売日の高揚感。ファンミ会場のイメージ
 - 内部にある部品
-   - Roomタイトル：今週参加する共有時間を識別する
-   - 開催時刻：Roomの開始とdeadlineを示す
-   - 作品プレビュー：参加作品の表紙を見せる
-   - 参加ボタン：Wallet接続へ進む意思を作る
+   - Roomタイトル：今週参加する共有時間を識別しRoomへの入り口
 
 領域名：今週の熱
 
@@ -219,6 +216,7 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 
 この画面ですること：
 Readerがformal ballotとRoom capabilityを自分のHedera accountへ結びつける。
+WalletはまずはHashPack一択
 
 領域名：Wallet選択
 
