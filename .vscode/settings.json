@@ -1,3 +1,33 @@
 {
-    "editor.mouseWheelZoom": true
+    "editor.mouseWheelZoom": true,
+    "chat.tools.terminal.autoApprove": {
+        "/^git diff --check -- software-design/sdd\\.md && awk '/\\^```/\\{n\\+\\+\\} END \\{ if \\(n % 2\\) \\{ print \"unbalanced fences\"; exit 1 \\} print \"code fences: \" n \" \\(balanced\\)\" \\}' software-design/sdd\\.md$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh api repos/rtree/oshikatsu/milestones\\?state=all --paginate --jq '\\.\\[\\] \\| \\[\\.number,\\.title,\\.state\\] \\| @tsv'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh label list --repo rtree/oshikatsu --limit 200 --json name,color,description --jq '\\.\\[\\] \\| \\[\\.name,\\.color,\\.description\\] \\| @tsv'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh issue list --repo rtree/oshikatsu --state all --limit 200 --json number,title,state,milestone,labels --jq '\\.\\[\\] \\| \\[\\.number,\\.title,\\.state,\\(\\.milestone\\.title // \"\"\\)\\] \\| @tsv'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git check-ignore -v \\.agents/skills/hedera-consensus-service/SKILL\\.md skills-lock\\.json \\|\\| true$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh api 'repos/rtree/oshikatsu/milestones\\?state=all&per_page=100' --paginate --jq '\\.\\[\\] \\| \\[\\.number,\\.title,\\.state\\] \\| @tsv'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git status --short --untracked-files=all -- \\.agents skills-lock\\.json \\.gitignore && git check-ignore -v \\.agents/skills/hedera-consensus-service/SKILL\\.md skills-lock\\.json \\|\\| true$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
 }
