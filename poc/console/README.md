@@ -77,6 +77,52 @@ npm run check
 npm run build
 ```
 
+## Room and Action administration
+
+Room manifests are immutable once created. Administrative delete operations archive a Room or
+retire a World Action; they do not erase Firestore manifests, World proof history, or Hedera HCS
+messages. Actions are derived from the Room and cannot be created with arbitrary text.
+
+The Cloud Run service requires these server-only settings for `/api/admin/**`:
+
+```text
+ADMIN_TOKEN_AUDIENCE=<Google OAuth identity-token audience>
+ADMIN_ALLOWED_EMAILS=<comma-separated administrator emails>
+```
+
+The CLI obtains an identity token from the active `gcloud` account. It never accepts or prints a
+token argument. Preview any operation without authentication or network access by adding
+`--dry-run`.
+
+```bash
+export OSHIKATSU_ADMIN_API=https://oshikatsu-api-m74bxsqz7a-an.a.run.app
+# Set this only when your credential type supports custom token audiences.
+# export OSHIKATSU_ADMIN_AUDIENCE=<same value as ADMIN_TOKEN_AUDIENCE>
+
+npm run admin -- room create \
+  --file scripts/examples/room.json \
+  --idempotency-key demo-room-2026-07-25 \
+  --dry-run
+npm run admin -- room list
+npm run admin -- room get <room-id>
+npm run admin -- room archive <room-id> \
+  --if-match <manifest-hash> \
+  --confirm <room-id> \
+  --reason "Created by mistake" \
+  --dry-run
+
+npm run admin -- action list --room <room-id>
+npm run admin -- action get 'ballot-v1:<room-id>'
+npm run admin -- action retire 'ballot-v1:<room-id>' \
+  --if-match <manifest-hash> \
+  --confirm 'ballot-v1:<room-id>' \
+  --dry-run
+```
+
+Room creation returns the two server-derived actions, `ROOM_PROOF_LEGACY` and `BALLOT_V1`.
+`Idempotency-Key` makes retries safe. Archive and retire commands send both the immutable manifest
+hash and an exact target confirmation header. `lisbon-main` is protected from either operation.
+
 ### Strict production acceptance
 
 `npm run acceptance:production` tests only deployed HTTPS services and the public Hedera

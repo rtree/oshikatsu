@@ -5,7 +5,7 @@ import { domainHash, encodeBallotEvent } from "@oshikatsu/protocol";
 import { z } from "zod";
 import { getWorldIdEnvironment } from "./config.js";
 import { getFirestore } from "./firestore.js";
-import { getRoom, roomIdSchema } from "./rooms.js";
+import { getRoom, requireRoomAction, roomIdSchema } from "./rooms.js";
 
 const accountIdSchema = z.string().regex(/^0\.0\.\d+$/);
 const nomineeIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{1,31}$/);
@@ -60,6 +60,7 @@ function getBallotAction(roomId: string) {
 export async function createBallotRequest(input: z.infer<typeof ballotRequestSchema>) {
   const room = await getRoom(input.room_id);
   if (!room || room.phase !== "LIVE") throw new Error("Room is not live.");
+  await requireRoomAction(room.id, "BALLOT_V1");
   assertNominees(room.works, input.nominee_ids);
   const world = getWorldIdEnvironment(); const action = getBallotAction(room.id);
   const signature = signRequest({ action, signingKeyHex: world.signingKey, ttl: 300 });
@@ -72,6 +73,7 @@ export async function createBallotRequest(input: z.infer<typeof ballotRequestSch
 export async function prepareBallot(input: z.infer<typeof ballotPrepareSchema>) {
   const world = getWorldIdEnvironment(); const context = verifyContext(input.context_token, world.signingKey);
   const room = context ? await getRoom(context.room_id) : null; const response = input.proof.responses[0];
+  if (room) await requireRoomAction(room.id, "BALLOT_V1");
   if (!context || !room || room.manifest_hash !== context.manifest_hash || context.expires_at < Math.floor(Date.now() / 1000) || input.signal !== context.signal || input.proof.nonce !== context.nonce || input.proof.action !== context.action || response?.signal_hash !== hashSignal(input.signal)) throw new Error("Ballot proof context mismatch.");
   assertNominees(room.works, context.nominee_ids);
   const verificationResponse = await fetch(`https://developer.world.org/api/v4/verify/${encodeURIComponent(world.rpId)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input.proof) });

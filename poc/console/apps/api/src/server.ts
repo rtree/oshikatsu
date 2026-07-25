@@ -3,10 +3,11 @@ import { signRequest } from "@worldcoin/idkit-server";
 import { hashSignal } from "@worldcoin/idkit-core/hashing";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { requireAdmin } from "./admin-auth.js";
 import { environment, getWorldIdEnvironment } from "./config.js";
 import { ballotPrepareSchema, ballotRequestSchema, createBallotRequest, getBallotStatus, listCapabilities, prepareBallot } from "./ballots.js";
 import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove } from "./groove.js";
-import { createRoom, createRoomSchema, getRoom, getRoomAction, listRooms, roomIdSchema } from "./rooms.js";
+import { archiveRoom, createAdminRoom, createRoom, createRoomSchema, getAdminRoom, getRoom, getRoomAction, listActions, listAdminRooms, listRooms, requireRoomAction, retireAction, roomIdSchema } from "./rooms.js";
 
 const app = express();
 
@@ -91,6 +92,47 @@ app.get("/api/health", (_request, response) => {
   });
 });
 
+app.use("/api/admin", requireAdmin);
+
+function adminError(response: express.Response, error: unknown) {
+  const message = error instanceof Error ? error.message : "ADMIN_OPERATION_FAILED";
+  const status = message.includes("NOT_FOUND") ? 404 : message.includes("MISMATCH") || message.includes("IDEMPOTENCY_CONFLICT") ? 412 : message.includes("PROTECTED") ? 409 : 400;
+  response.status(status).json({ error: message });
+}
+
+app.post("/api/admin/rooms", async (request, response) => {
+  const parsed = createRoomSchema.safeParse(request.body);
+  const key = request.header("idempotency-key") ?? "";
+  if (!parsed.success) { response.status(400).json({ error: "Invalid Room manifest input.", issues: parsed.error.issues }); return; }
+  try { response.status(201).json(await createAdminRoom(parsed.data, key, response.locals.adminEmail)); } catch (error) { adminError(response, error); }
+});
+
+app.get("/api/admin/rooms", async (_request, response) => {
+  try { response.json({ rooms: await listAdminRooms() }); } catch (error) { adminError(response, error); }
+});
+
+app.get("/api/admin/rooms/:roomId", async (request, response) => {
+  try { const result = await getAdminRoom(request.params.roomId); if (!result) { response.status(404).json({ error: "ROOM_NOT_FOUND" }); return; } response.json(result); } catch (error) { adminError(response, error); }
+});
+
+app.delete("/api/admin/rooms/:roomId", async (request, response) => {
+  const reason = typeof request.body?.reason === "string" ? request.body.reason : "";
+  if (reason.length < 3) { response.status(400).json({ error: "Archive reason is required." }); return; }
+  try { response.json(await archiveRoom(request.params.roomId, (request.header("if-match") ?? "").replaceAll('"', ""), request.header("x-confirm-room-id") ?? "", reason, response.locals.adminEmail)); } catch (error) { adminError(response, error); }
+});
+
+app.get("/api/admin/actions", async (request, response) => {
+  try { response.json({ actions: await listActions(typeof request.query.room_id === "string" ? request.query.room_id : undefined) }); } catch (error) { adminError(response, error); }
+});
+
+app.get("/api/admin/actions/:actionId", async (request, response) => {
+  try { const action = (await listActions()).find((candidate) => candidate.id === request.params.actionId); if (!action) { response.status(404).json({ error: "ACTION_NOT_FOUND" }); return; } response.json({ action }); } catch (error) { adminError(response, error); }
+});
+
+app.delete("/api/admin/actions/:actionId", async (request, response) => {
+  try { response.json(await retireAction(request.params.actionId, (request.header("if-match") ?? "").replaceAll('"', ""), request.header("x-confirm-action-id") ?? "", response.locals.adminEmail)); } catch (error) { adminError(response, error); }
+});
+
 app.get("/api/rooms", async (_request, response) => {
   try {
     response.json({ rooms: await listRooms() });
@@ -106,7 +148,8 @@ app.post("/api/rooms", async (request, response) => {
     return;
   }
   try {
-    response.status(201).json({ room: await createRoom(parsed.data) });
+    const result = await createAdminRoom(parsed.data, request.header("idempotency-key") ?? randomUUID(), "public-room-creator");
+    response.status(201).json({ room: result.room, actions: result.actions, replayed: result.replayed });
   } catch (error) {
     response.status(400).json({ error: error instanceof Error ? error.message : "Room creation failed." });
   }
@@ -202,6 +245,7 @@ app.post("/api/world-id/request", async (request, response) => {
       response.status(404).json({ error: "Unknown room." });
       return;
     }
+    await requireRoomAction(room.id, "ROOM_PROOF_LEGACY");
     const action = getRoomAction(roomId);
     const signature = signRequest({
       action,
@@ -251,6 +295,7 @@ app.post("/api/world-id/verify", async (request, response) => {
     const worldId = getWorldIdEnvironment();
     const { context_token: contextToken, proof, signal } = parsed.data;
     const context = verifyProofContext(contextToken, worldId.signingKey);
+    if (context) await requireRoomAction(context.room_id, "ROOM_PROOF_LEGACY");
     const expectedAction = context ? getRoomAction(context.room_id) : null;
     const expectedSignalHash = hashSignal(signal);
     const signalMatches = proof.responses.every(

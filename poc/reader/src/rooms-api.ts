@@ -88,7 +88,7 @@ export async function createRoom(input: {
 }) {
   const response = await fetch("/api/rooms", {
     method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    headers: { Accept: "application/json", "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
     body: JSON.stringify(input),
   });
   const payload = await response.json() as { room?: unknown; error?: string };

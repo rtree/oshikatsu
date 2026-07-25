@@ -17,9 +17,21 @@ const environmentSchema = z.object({
   WORLD_APP_ID: z.string().startsWith("app_").optional(),
   WORLD_RP_ID: z.string().startsWith("rp_").optional(),
   WORLD_RP_SIGNING_KEY: z.string().min(1).optional(),
+  ADMIN_TOKEN_AUDIENCE: z.string().url().optional(),
+  ADMIN_ALLOWED_EMAILS: z.string().optional(),
 });
 
 export const environment = environmentSchema.parse(process.env);
+
+export function getAdminEnvironment() {
+  if (!environment.ADMIN_TOKEN_AUDIENCE || !environment.ADMIN_ALLOWED_EMAILS) {
+    throw new Error("Admin API is not configured.");
+  }
+  return {
+    audience: environment.ADMIN_TOKEN_AUDIENCE,
+    allowedEmails: new Set(environment.ADMIN_ALLOWED_EMAILS.split(",").map((email) => email.trim()).filter(Boolean)),
+  };
+}
 
 export function getVertexAiEnvironment() {
   if (!environment.GOOGLE_CLOUD_PROJECT) {

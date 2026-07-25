@@ -1,0 +1,24 @@
+{
+  "name": "Friday Reader Night",
+  "opens_at": "2026-07-31T18:00:00.000Z",
+  "deadline": "2026-07-31T22:00:00.000Z",
+  "topic_id": "0.0.9745676",
+  "works": [
+    {
+      "id": "first-work",
+      "title": "First Work",
+      "chapter": "Chapter 1",
+      "cover_url": "https://oshikatsu-reader-lisbon26.web.app/assets/sample01.webp",
+      "hero_url": null,
+      "reading_url": "https://www.webtoons.com/"
+    },
+    {
+      "id": "second-work",
+      "title": "Second Work",
+      "chapter": "Chapter 1",
+      "cover_url": "https://oshikatsu-reader-lisbon26.web.app/assets/sample02.webp",
+      "hero_url": null,
+      "reading_url": "https://www.webtoons.com/"
+    }
+  ]
+}

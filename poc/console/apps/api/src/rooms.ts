@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
+import { FieldValue } from "@google-cloud/firestore";
 import { getFirestore } from "./firestore.js";
 
 export const roomIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{2,63}$/);
@@ -37,6 +38,22 @@ export type Room = {
   acceptance_run_id?: string;
 };
 
+export type RoomAction = {
+  id: string;
+  room_id: string;
+  kind: "ROOM_PROOF_LEGACY" | "BALLOT_V1";
+  action: string;
+  state: "ACTIVE" | "RETIRED";
+};
+
+type RoomAdmin = {
+  state: "ACTIVE" | "ARCHIVED";
+  retired_actions?: string[];
+  archived_at?: string;
+  archived_by?: string;
+  reason?: string;
+};
+
 const seedInput: z.infer<typeof createRoomSchema> = {
   name: "Weekly Chapter Drop",
   opens_at: "2026-07-25T00:00:00.000Z",
@@ -53,6 +70,14 @@ const seedInput: z.infer<typeof createRoomSchema> = {
 
 export function getRoomAction(roomId: string) {
   return `oshikatsu-room:${roomId}`;
+}
+
+export function getRoomActions(roomId: string, admin?: RoomAdmin): RoomAction[] {
+  const actions: Array<Omit<RoomAction, "state">> = [
+    { id: `room-proof-legacy:${roomId}`, room_id: roomId, kind: "ROOM_PROOF_LEGACY", action: getRoomAction(roomId) },
+    { id: `ballot-v1:${roomId}`, room_id: roomId, kind: "BALLOT_V1", action: `oshikatsu-ballot-v1:${roomId}` },
+  ];
+  return actions.map((action) => ({ ...action, state: admin?.retired_actions?.includes(action.id) ? "RETIRED" : "ACTIVE" }));
 }
 
 function canonicalManifest(input: z.infer<typeof createRoomSchema>, id: string) {
@@ -107,13 +132,40 @@ export async function createRoom(input: z.infer<typeof createRoomSchema>) {
   return room;
 }
 
+export async function createAdminRoom(input: z.infer<typeof createRoomSchema>, idempotencyKey: string, actor: string) {
+  if (!/^[A-Za-z0-9._:-]{8,100}$/.test(idempotencyKey)) throw new Error("INVALID_IDEMPOTENCY_KEY");
+  const keyHash = createHash("sha256").update(idempotencyKey).digest("hex");
+  const requestHash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
+  const store = getFirestore();
+  const reference = store.collection("admin_idempotency").doc(keyHash);
+  const created = await store.runTransaction(async (transaction) => {
+    const existing = await transaction.get(reference);
+    if (existing.exists) {
+      const data = existing.data() as { request_hash: string; room_id: string };
+      if (data.request_hash !== requestHash) throw new Error("IDEMPOTENCY_CONFLICT");
+      return { roomId: data.room_id, replayed: true };
+    }
+    const id = `room-${randomUUID().replaceAll("-", "").slice(0, 20)}`;
+    const room = createRoomDocument(input, id);
+    transaction.create(store.collection("rooms").doc(id), room);
+    transaction.create(reference, { request_hash: requestHash, room_id: id, actor, created_at: new Date().toISOString() });
+    transaction.create(store.collection("admin_audit").doc(), { actor, operation: "CREATE_ROOM", target: id, manifest_hash: room.manifest_hash, created_at: new Date().toISOString() });
+    return { roomId: id, replayed: false };
+  });
+  const result = await getAdminRoom(created.roomId);
+  if (!result) throw new Error("IDEMPOTENCY_RESULT_MISSING");
+  return { ...result, replayed: created.replayed };
+}
+
 export async function listRooms() {
   await ensureSeedRoom();
-  const snapshot = await getFirestore().collection("rooms").orderBy("created_at", "desc").limit(50).get();
-  return snapshot.docs.map((document) => {
+  const snapshot = await getFirestore().collection("rooms").orderBy("created_at", "desc").limit(200).get();
+  const adminSnapshots = await Promise.all(snapshot.docs.map((document) => getFirestore().collection("room_admin").doc(document.id).get()));
+  return snapshot.docs.flatMap((document, index) => {
+    if ((adminSnapshots[index]?.data() as RoomAdmin | undefined)?.state === "ARCHIVED") return [];
     const room = document.data() as Room;
     return { ...room, phase: roomPhase(room.opens_at, room.deadline) };
-  });
+  }).slice(0, 50);
 }
 
 export async function getRoom(id: string) {
@@ -123,4 +175,66 @@ export async function getRoom(id: string) {
   if (!snapshot.exists) return null;
   const room = snapshot.data() as Room;
   return { ...room, phase: roomPhase(room.opens_at, room.deadline) };
+}
+
+export async function listAdminRooms() {
+  await ensureSeedRoom();
+  const snapshot = await getFirestore().collection("rooms").orderBy("created_at", "desc").limit(100).get();
+  return Promise.all(snapshot.docs.map(async (document) => {
+    const room = document.data() as Room;
+    const admin = (await getFirestore().collection("room_admin").doc(document.id).get()).data() as RoomAdmin | undefined;
+    return { room: { ...room, phase: roomPhase(room.opens_at, room.deadline) }, admin: admin ?? { state: "ACTIVE" }, actions: getRoomActions(room.id, admin) };
+  }));
+}
+
+export async function getAdminRoom(id: string) {
+  const room = await getRoom(id);
+  if (!room) return null;
+  const admin = (await getFirestore().collection("room_admin").doc(id).get()).data() as RoomAdmin | undefined;
+  return { room, admin: admin ?? { state: "ACTIVE" }, actions: getRoomActions(id, admin) };
+}
+
+export async function requireRoomAction(roomId: string, kind: RoomAction["kind"]) {
+  const admin = (await getFirestore().collection("room_admin").doc(roomId).get()).data() as RoomAdmin | undefined;
+  if (admin?.state === "ARCHIVED") throw new Error("ROOM_ARCHIVED");
+  const action = getRoomActions(roomId, admin).find((candidate) => candidate.kind === kind);
+  if (!action || action.state !== "ACTIVE") throw new Error("ACTION_RETIRED");
+  return action;
+}
+
+export async function requireActiveRoom(roomId: string) {
+  const admin = (await getFirestore().collection("room_admin").doc(roomId).get()).data() as RoomAdmin | undefined;
+  if (admin?.state === "ARCHIVED") throw new Error("ROOM_ARCHIVED");
+}
+
+export async function archiveRoom(id: string, manifestHash: string, confirmId: string, reason: string, actor: string) {
+  if (id === "lisbon-main") throw new Error("PROTECTED_ROOM");
+  if (confirmId !== id) throw new Error("ROOM_CONFIRMATION_MISMATCH");
+  const room = await getRoom(id);
+  if (!room) throw new Error("ROOM_NOT_FOUND");
+  if (room.manifest_hash !== manifestHash) throw new Error("MANIFEST_HASH_MISMATCH");
+  const now = new Date().toISOString();
+  await getFirestore().collection("room_admin").doc(id).set({ state: "ARCHIVED", archived_at: now, archived_by: actor, reason }, { merge: true });
+  await getFirestore().collection("admin_audit").add({ actor, operation: "ARCHIVE_ROOM", target: id, manifest_hash: room.manifest_hash, reason, created_at: now });
+  return { room_id: id, state: "ARCHIVED", immutable_evidence_retained: true } as const;
+}
+
+export async function listActions(roomId?: string) {
+  const rooms = await listAdminRooms();
+  return rooms.filter((entry) => !roomId || entry.room.id === roomId).flatMap((entry) => entry.actions);
+}
+
+export async function retireAction(actionId: string, manifestHash: string, confirmId: string, actor: string) {
+  if (confirmId !== actionId) throw new Error("ACTION_CONFIRMATION_MISMATCH");
+  const separator = actionId.indexOf(":");
+  const roomId = separator < 0 ? "" : actionId.slice(separator + 1);
+  const room = await getRoom(roomId);
+  if (!room) throw new Error("ROOM_NOT_FOUND");
+  if (room.id === "lisbon-main") throw new Error("PROTECTED_ROOM");
+  if (room.manifest_hash !== manifestHash) throw new Error("MANIFEST_HASH_MISMATCH");
+  const actions = getRoomActions(room.id);
+  if (!actions.some((action) => action.id === actionId)) throw new Error("ACTION_NOT_FOUND");
+  await getFirestore().collection("room_admin").doc(room.id).set({ retired_actions: FieldValue.arrayUnion(actionId) }, { merge: true });
+  await getFirestore().collection("admin_audit").add({ actor, operation: "RETIRE_ACTION", target: actionId, room_id: room.id, created_at: new Date().toISOString() });
+  return { action_id: actionId, state: "RETIRED", historical_verification_retained: true } as const;
 }

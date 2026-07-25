@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { encodeGrooveEvent, reactionIds } from "@oshikatsu/protocol";
 import { z } from "zod";
 import { getFirestore } from "./firestore.js";
-import { getRoom, roomIdSchema } from "./rooms.js";
+import { getRoom, requireActiveRoom, roomIdSchema } from "./rooms.js";
 
 const accountIdSchema = z.string().regex(/^0\.0\.\d+$/);
 
@@ -57,6 +57,7 @@ function transactionKey(transactionId: string) {
 export async function prepareGroove(input: z.infer<typeof groovePrepareSchema>) {
   const room = await getRoom(input.room_id);
   if (!room) throw new Error("Room not found.");
+  await requireActiveRoom(room.id);
   if (room.phase !== "LIVE") throw new Error("Room is not live.");
   if (!room.works.some((work) => work.id === input.work_id)) throw new Error("Work is not in this Room.");
 
