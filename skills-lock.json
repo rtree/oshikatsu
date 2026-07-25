@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "Quality Gates": {
+      "source": "hedera-dev/hedera-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/dev-intelligence/skills/quality-gates/SKILL.md",
+      "computedHash": "37fe0b2761e43643f114780fa33488420dfd6925929fbd9f1e6172b568d8e85e"
+    },
+    "Session Management": {
+      "source": "hedera-dev/hedera-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/dev-intelligence/skills/session-management/SKILL.md",
+      "computedHash": "e13bfd10289a165c6992e0ddca6f3e662944cba680eb60534af57c0a9dd9bdb4"
+    },
+    "hedera-consensus-service": {
+      "source": "hedera-dev/hedera-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/native-services-js/skills/hedera-consensus-service/SKILL.md",
+      "computedHash": "fb9eb7f471c679906a280645b6929effd77702f61ed97752f8e1ddaea7281f4d"
+    },
+    "hedera-token-service": {
+      "source": "hedera-dev/hedera-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/native-services-js/skills/hedera-token-service/SKILL.md",
+      "computedHash": "338c4298decf07170db7679286909e401b4747bb6614ed76cc83e287ab6bf8f1"
+    }
+  }
+}
