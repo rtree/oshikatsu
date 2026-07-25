@@ -32,4 +32,5 @@ ui-debug.log*
 # Editors and operating systems
 .DS_Store
 .idea/
+/.vscode/settings.json
 *.swp
