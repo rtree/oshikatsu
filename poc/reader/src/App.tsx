@@ -13,7 +13,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { fetchRooms, type Room, type RoomWork } from "./rooms-api";
+import { fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type Room, type RoomWork } from "./rooms-api";
 import { prepareGroove, waitForGrooveConfirmation, type GrooveStatus } from "./groove-api";
 
 type View = "home" | "room" | "rankings" | "shelf" | "profile";
@@ -23,6 +23,11 @@ type RoomsState =
   | { status: "ready"; rooms: Room[] }
   | { status: "empty" }
   | { status: "error"; message: string };
+
+type ProjectionState =
+  | { status: "idle" | "loading" }
+  | { status: "ready"; events: ConfirmedGrooveEvent[] }
+  | { status: "error" };
 
 const reactions = [
   { id: "peak", icon: "/assets/ico08.webp", label: "Peak Chapter", count: "8,321" },
@@ -40,6 +45,7 @@ export function App() {
   const [view, setView] = useState<View>("home");
   const [roomsState, setRoomsState] = useState<RoomsState>({ status: "loading" });
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [projectionState, setProjectionState] = useState<ProjectionState>({ status: "idle" });
   const [selectedWorkId, setSelectedWorkId] = useState<string | null>(null);
   const [selectedReaction, setSelectedReaction] = useState(reactions[0].id);
   const [shout, setShout] = useState("");
@@ -87,7 +93,18 @@ export function App() {
     setSelectedRoomId(room.id);
     setSelectedWorkId(room.works[0]?.id ?? null);
     setTopThree([]);
+    setProjectionState({ status: "loading" });
+    void loadProjection(room.id);
     setView("room");
+  }
+
+  async function loadProjection(roomId: string) {
+    try {
+      const projection = await fetchRoomProjection(roomId);
+      setProjectionState({ status: "ready", events: projection.groove });
+    } catch {
+      setProjectionState({ status: "error" });
+    }
   }
 
   async function submitGroove() {
@@ -112,6 +129,7 @@ export function App() {
       const evidence = await waitForGrooveConfirmation(preparation.id, transactionId);
       setGrooveEvidence(evidence);
       setGrooveState("confirmed");
+      await loadProjection(selectedRoom.id);
     } catch (error) {
       setGrooveError(error instanceof Error ? error.message : "Groove submission failed.");
       setGrooveState("idle");
@@ -127,6 +145,7 @@ export function App() {
           work={selectedWork}
           selectedWorkId={selectedWorkId}
           topThree={topThree}
+          projectionState={projectionState}
           onBack={() => setView("home")}
           onSelectWork={setSelectedWorkId}
           onOpenGroove={() => setDialogOpen(true)}
@@ -213,6 +232,7 @@ type RoomViewProps = {
   work: RoomWork;
   selectedWorkId: string | null;
   topThree: string[];
+  projectionState: ProjectionState;
   onBack: () => void;
   onSelectWork: (id: string) => void;
   onOpenGroove: () => void;
@@ -220,7 +240,7 @@ type RoomViewProps = {
   onToggleTopThree: () => void;
 };
 
-function RoomView({ room, work, selectedWorkId, topThree, onBack, onSelectWork, onOpenGroove, onReviewBallot, onToggleTopThree }: RoomViewProps) {
+function RoomView({ room, work, selectedWorkId, topThree, projectionState, onBack, onSelectWork, onOpenGroove, onReviewBallot, onToggleTopThree }: RoomViewProps) {
   const inTopThree = topThree.includes(work.id);
   const topThreeFull = topThree.length >= 3 && !inTopThree;
   return (
@@ -263,19 +283,26 @@ function RoomView({ room, work, selectedWorkId, topThree, onBack, onSelectWork, 
         </section>
 
         <aside className="groove-panel" aria-labelledby="groove-title">
-          <div className="panel-heading"><div><p className="kicker">RIGHT NOW</p><h2 id="groove-title">Groove Wave</h2></div><span>28.4K</span></div>
-          <div className="reaction-summary">
-            {reactions.slice(0, 6).map((reaction) => <div key={reaction.id}><img src={reaction.icon} alt="" /><span>{reaction.label}</span><strong>{reaction.count}</strong></div>)}
-          </div>
-          <div className="shout-feed">
-            <p><span>Lv.18 Hidden Gem Scout</span>Peak chapter. I cannot recover from this.</p>
-            <p><span>Lv.07 Long-Run Supporter</span>That final panel changed everything.</p>
-            <p><span>Lv.31 Reader</span>Next chapter. Right now.</p>
-          </div>
+          <div className="panel-heading"><div><p className="kicker">CONFIRMED ON HEDERA</p><h2 id="groove-title">Groove Wave</h2></div><span>{projectionState.status === "ready" ? projectionState.events.length : "—"}</span></div>
+          {projectionState.status === "loading" && <p className="dialog-note" role="status">Loading confirmed events...</p>}
+          {projectionState.status === "error" && <p className="dialog-note" role="alert">Groove evidence unavailable.</p>}
+          {projectionState.status === "ready" && projectionState.events.length === 0 && <p className="dialog-note">No confirmed events yet.</p>}
+          {projectionState.status === "ready" && <div className="shout-feed">{projectionState.events.map((event) => <GrooveEvidence event={event} key={event.prepare_id} />)}</div>}
         </aside>
       </div>
     </main>
   );
+}
+
+function GrooveEvidence({ event }: { event: ConfirmedGrooveEvent }) {
+  let message: { s?: string; c?: string } = {};
+  try {
+    message = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(event.message_base64), (character) => character.charCodeAt(0)))) as { s?: string; c?: string };
+  } catch {
+    message = {};
+  }
+  const reaction = reactions.find((item) => item.id === message.s);
+  return <p><span>Sequence #{event.sequence_number} · {event.payer_account_id} · {event.message_bytes} bytes</span><strong>{reaction?.label ?? "Confirmed reaction"}</strong>{message.c && <> · {message.c}</>}</p>;
 }
 
 type GrooveDialogProps = {

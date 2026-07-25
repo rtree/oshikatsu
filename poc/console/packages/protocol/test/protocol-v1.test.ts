@@ -28,6 +28,7 @@ test("unknown and noncanonical inputs are rejected", () => {
   const canonical = new TextDecoder().decode(encodeGrooveEvent(base));
   assert.throws(() => decodeGrooveEvent(new TextEncoder().encode(canonical.replace('"e":', '"x":true,"e":'))), /unknown/);
   assert.throws(() => decodeGrooveEvent(new TextEncoder().encode(` ${canonical}`)), /canonical/);
+  assert.throws(() => decodeGrooveEvent(new TextEncoder().encode(canonical.replace(/"e":"[0-9a-f]+"/, `"e":"${"0".repeat(64)}"`))), /hash is invalid/);
 });
 
 test("Shout limits and the 900-byte event boundary are enforced", () => {

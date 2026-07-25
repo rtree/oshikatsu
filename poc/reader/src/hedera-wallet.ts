@@ -45,12 +45,21 @@ function accountFromProvider(walletProvider: HederaProvider) {
   return account?.startsWith("hedera:testnet:") ? account : null;
 }
 
+async function waitForAccount(walletProvider: HederaProvider) {
+  for (let attempt = 0; attempt < 480; attempt += 1) {
+    const account = accountFromProvider(walletProvider);
+    if (account) return account;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return null;
+}
+
 export async function requireHashPackAccount() {
   const wallet = await getWallet();
   let account = accountFromProvider(wallet.provider);
   if (!account) {
-    await wallet.appKit.open({ view: "Connect" });
-    account = accountFromProvider(wallet.provider);
+    void wallet.appKit.open({ view: "Connect" });
+    account = await waitForAccount(wallet.provider);
   }
   if (!account) throw new Error("Connect a HashPack testnet account, then press Send again.");
   return { accountId: account.slice("hedera:testnet:".length), signerAccountId: account };

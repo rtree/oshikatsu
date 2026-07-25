@@ -141,13 +141,14 @@ const grooveEvidence = await check("Groove HCS and Mirror correlation", async ()
   assert(status.body.status === "CONFIRMED", "API did not report Groove as CONFIRMED.");
   assert(status.body.payer_account_id === submission.payer_account_id, "API Groove payer mismatch.");
 
-  const query = new URLSearchParams({
-    limit: "100",
-    order: "desc",
-    transactionid: submission.transaction_id,
-  });
+  const transactionKey = submission.transaction_id.replace("@", "-").replace(/\.(?=\d+$)/, "-");
+  const transaction = await mirrorRequest(`/api/v1/transactions/${encodeURIComponent(transactionKey)}`);
+  const consensusTimestamp = transaction.transactions?.find(
+    (candidate) => candidate.name === "CONSENSUSSUBMITMESSAGE" && candidate.result === "SUCCESS",
+  )?.consensus_timestamp;
+  assert(consensusTimestamp, "Mirror has no successful HCS transaction evidence.");
   const mirror = await mirrorRequest(
-    `/api/v1/topics/${encodeURIComponent(submission.topic_id)}/messages?${query}`,
+    `/api/v1/topics/${encodeURIComponent(submission.topic_id)}/messages?timestamp=${encodeURIComponent(consensusTimestamp)}`,
   );
   const match = mirror.messages?.find(
     (message) =>

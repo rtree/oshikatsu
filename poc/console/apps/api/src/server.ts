@@ -4,7 +4,7 @@ import { hashSignal } from "@worldcoin/idkit-core/hashing";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { environment, getWorldIdEnvironment } from "./config.js";
-import { getGrooveStatus, groovePrepareSchema, prepareGroove } from "./groove.js";
+import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove } from "./groove.js";
 import { createRoom, createRoomSchema, getRoom, getRoomAction, listRooms, roomIdSchema } from "./rooms.js";
 
 const app = express();
@@ -147,6 +147,24 @@ app.get("/api/groove/status/:transactionId", async (request, response) => {
     response.json(await getGrooveStatus(prepareId, request.params.transactionId));
   } catch (error) {
     response.status(400).json({ error: error instanceof Error ? error.message : "Groove status failed." });
+  }
+});
+
+app.get("/api/projection/rooms/:roomId", async (request, response) => {
+  try {
+    const room = await getRoom(request.params.roomId);
+    if (!room) {
+      response.status(404).json({ error: "Room not found." });
+      return;
+    }
+    response.json({
+      room,
+      groove: await listConfirmedGroove(room.id),
+      ballot: { status: "PENDING" },
+      revision: new Date().toISOString(),
+    });
+  } catch {
+    response.status(400).json({ error: "Invalid Room projection request." });
   }
 });
 

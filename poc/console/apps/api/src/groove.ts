@@ -54,13 +54,6 @@ function transactionKey(transactionId: string) {
   throw new Error("Invalid Hedera transaction id.");
 }
 
-function messageTransactionKey(message: MirrorMessage) {
-  const initial = message.chunk_info?.initial_transaction_id;
-  if (!initial) return null;
-  const [seconds, nanos] = initial.transaction_valid_start.split(".");
-  return seconds && nanos ? `${initial.account_id}-${seconds}-${nanos}` : null;
-}
-
 export async function prepareGroove(input: z.infer<typeof groovePrepareSchema>) {
   const room = await getRoom(input.room_id);
   if (!room) throw new Error("Room not found.");
@@ -104,15 +97,30 @@ export async function getGrooveStatus(prepareId: string, transactionId: string) 
   }
 
   const expectedTransaction = transactionKey(transactionId);
-  const response = await fetch(
-    `https://testnet.mirrornode.hedera.com/api/v1/topics/${encodeURIComponent(preparation.topic_id)}/messages?limit=100&order=desc`,
+  const transactionResponse = await fetch(
+    `https://testnet.mirrornode.hedera.com/api/v1/transactions/${encodeURIComponent(expectedTransaction)}`,
     { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10_000) },
   );
-  if (!response.ok) throw new Error("Mirror Node is unavailable.");
-  const payload = (await response.json()) as { messages?: MirrorMessage[] };
-  const transactionMessages = payload.messages?.filter(
-    (message) => messageTransactionKey(message) === expectedTransaction,
-  ) ?? [];
+  if (transactionResponse.status === 404) return { status: "PENDING" } as const;
+  if (!transactionResponse.ok) throw new Error("Mirror Node is unavailable.");
+  const transactionPayload = (await transactionResponse.json()) as {
+    transactions?: Array<{ consensus_timestamp: string; entity_id: string; name: string; result: string }>;
+  };
+  const transaction = transactionPayload.transactions?.find(
+    (candidate) => candidate.name === "CONSENSUSSUBMITMESSAGE" && candidate.result === "SUCCESS",
+  );
+  if (!transaction) return { status: "INVALID", reason: "TRANSACTION_NOT_SUCCESSFUL" } as const;
+  if (transaction.entity_id !== preparation.topic_id) {
+    return { status: "INVALID", reason: "TRANSACTION_TOPIC_MISMATCH" } as const;
+  }
+
+  const messageResponse = await fetch(
+    `https://testnet.mirrornode.hedera.com/api/v1/topics/${encodeURIComponent(preparation.topic_id)}/messages?timestamp=${encodeURIComponent(transaction.consensus_timestamp)}`,
+    { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10_000) },
+  );
+  if (!messageResponse.ok) throw new Error("Mirror Node message lookup is unavailable.");
+  const payload = (await messageResponse.json()) as { messages?: MirrorMessage[] };
+  const transactionMessages = payload.messages ?? [];
   if (transactionMessages.length === 0) return { status: "PENDING" } as const;
 
   const expectedBytes = Buffer.from(preparation.message_base64, "base64");
@@ -126,9 +134,11 @@ export async function getGrooveStatus(prepareId: string, transactionId: string) 
   });
   if (!match) return { status: "INVALID", reason: "MIRROR_EVIDENCE_MISMATCH" } as const;
 
-  return {
+  const confirmed = {
     status: "CONFIRMED",
     prepare_id: preparation.id,
+    room_id: preparation.room_id,
+    work_id: preparation.work_id,
     transaction_id: transactionId,
     topic_id: preparation.topic_id,
     payer_account_id: match.payer_account_id,
@@ -138,4 +148,15 @@ export async function getGrooveStatus(prepareId: string, transactionId: string) 
     message_bytes: preparation.message_bytes,
     event_hash: preparation.event_hash,
   } as const;
+  await getFirestore().collection("groove_events").doc(preparation.id).set(confirmed);
+  return confirmed;
+}
+
+export async function listConfirmedGroove(roomId: string) {
+  const snapshot = await getFirestore()
+    .collection("groove_events")
+    .where("room_id", "==", roomId)
+    .limit(100)
+    .get();
+  return snapshot.docs.map((document) => document.data());
 }

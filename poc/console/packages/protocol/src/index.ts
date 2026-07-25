@@ -135,8 +135,8 @@ export function decodeGrooveEvent(bytes: Uint8Array): GrooveEvent {
   };
   if (value.v !== 1 || typeof value.e !== "string") fail("Event version or hash is invalid.");
   const event = createGrooveEvent(input);
+  if (event.e !== value.e) fail("Event hash is invalid.");
   const canonical = encodeGrooveEvent(input);
   if (!Buffer.from(canonical).equals(Buffer.from(bytes))) fail("Event JSON is not canonical.");
-  if (event.e !== value.e) fail("Event hash is invalid.");
   return event;
 }
