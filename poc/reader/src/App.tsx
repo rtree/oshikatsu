@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
+import { IDKitRequestWidget, proofOfHuman, type IDKitResult } from "@worldcoin/idkit";
 import {
   ArrowLeft,
   BookOpen,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { createRoom, fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type Room, type RoomWork } from "./rooms-api";
 import { prepareGroove, waitForGrooveConfirmation, type GrooveStatus } from "./groove-api";
+import { prepareBallot, requestBallotProof, waitForCapability, type BallotCapability, type BallotRequest } from "./ballot-api";
 
 type View = "home" | "room" | "rankings" | "shelf" | "profile";
 
@@ -64,6 +66,12 @@ export function App() {
   const [grooveError, setGrooveError] = useState<string | null>(null);
   const [grooveEvidence, setGrooveEvidence] = useState<Extract<GrooveStatus, { status: "CONFIRMED" }> | null>(null);
   const [ballotOpen, setBallotOpen] = useState(false);
+  const [ballotRequest, setBallotRequest] = useState<BallotRequest | null>(null);
+  const [worldOpen, setWorldOpen] = useState(false);
+  const [ballotState, setBallotState] = useState<"idle" | "connecting" | "world" | "preparing" | "approving" | "confirming" | "granted">("idle");
+  const [ballotError, setBallotError] = useState<string | null>(null);
+  const [ballotCapability, setBallotCapability] = useState<BallotCapability | null>(null);
+  const ballotSignerRef = useRef<string | null>(null);
   const [topThree, setTopThree] = useState<string[]>([]);
   const rooms = roomsState.status === "ready" ? roomsState.rooms : [];
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
@@ -146,6 +154,35 @@ export function App() {
     }
   }
 
+  async function startBallot() {
+    if (!selectedRoom || topThree.length !== 3) return;
+    setBallotError(null); setBallotCapability(null);
+    try {
+      setBallotState("connecting");
+      const { requireHashPackAccount } = await import("./hedera-wallet");
+      const account = await requireHashPackAccount();
+      ballotSignerRef.current = account.signerAccountId;
+      setBallotState("world");
+      const request = await requestBallotProof(selectedRoom.id, account.accountId, topThree as [string, string, string]);
+      setBallotRequest(request); setWorldOpen(true);
+    } catch (error) {
+      setBallotError(error instanceof Error ? error.message : "Ballot request failed."); setBallotState("idle");
+    }
+  }
+
+  async function verifyAndSubmitBallot(proof: IDKitResult) {
+    if (!ballotRequest || !ballotSignerRef.current) throw new Error("Ballot context is unavailable.");
+    setBallotState("preparing");
+    const preparation = await prepareBallot(ballotRequest, proof);
+    setBallotState("approving");
+    const { submitPreparedBallot } = await import("./hedera-wallet");
+    const transactionId = await submitPreparedBallot(preparation, ballotSignerRef.current);
+    setBallotState("confirming");
+    const capability = await waitForCapability(preparation.id, transactionId);
+    setBallotCapability(capability); setBallotState("granted");
+    if (selectedRoom) await loadProjection(selectedRoom.id);
+  }
+
   return (
     <div className="reader-app">
       {view === "home" && <HomeView roomsState={roomsState} onEnterRoom={enterRoom} onRetry={() => void loadRooms()} />}
@@ -183,7 +220,8 @@ export function App() {
           evidence={grooveEvidence}
         />
       )}
-      {ballotOpen && <BallotDialog topThree={topThree} works={selectedRoom?.works ?? []} onClose={() => setBallotOpen(false)} />}
+      {ballotOpen && <BallotDialog topThree={topThree} works={selectedRoom?.works ?? []} state={ballotState} error={ballotError} capability={ballotCapability} onCast={() => void startBallot()} onClose={() => setBallotOpen(false)} />}
+      {ballotRequest && <IDKitRequestWidget key={ballotRequest.context_token} open={worldOpen} onOpenChange={setWorldOpen} app_id={ballotRequest.app_id} action={ballotRequest.action} action_description={ballotRequest.action_description} rp_context={ballotRequest.rp_context} allow_legacy_proofs={false} environment="production" polling={{ interval: 1_000, timeout: 60_000 }} preset={proofOfHuman({ signal: ballotRequest.signal })} handleVerify={verifyAndSubmitBallot} onSuccess={() => setWorldOpen(false)} onError={(code) => { setBallotError(`World ID: ${code}`); setBallotState("idle"); setWorldOpen(false); }} />}
     </div>
   );
 }
@@ -206,7 +244,7 @@ function HomeView({ roomsState, onEnterRoom, onRetry }: { roomsState: RoomsState
           <p className="hero-copy">Five new chapters. One shared night. Enter the Room and find the story everyone is shouting about.</p>
           <div className="hero-actions"><button className="primary-action" type="button" onClick={() => featuredRoom && onEnterRoom(featuredRoom)} disabled={!featuredRoom}>Join the Groove <Sparkles size={20} /></button><button className="browse-action" type="button" onClick={() => document.getElementById("rooms-title")?.scrollIntoView({ behavior: "smooth" })}>Browse First</button></div>
           <div className="live-stats">
-            <span><UsersRound size={17} /> {rooms.length} durable Room{rooms.length === 1 ? "" : "s"}</span>
+            <span><UsersRound size={17} /> {roomsState.status === "ready" ? `${roomsState.rooms.length} durable Room${roomsState.rooms.length === 1 ? "" : "s"}` : "Room count unavailable"}</span>
             <span><Clock3 size={17} /> {featuredRoom ? `Closes ${formatDeadline(featuredRoom.deadline)}` : "Room schedule unavailable"}</span>
           </div>
         </div>
@@ -372,7 +410,7 @@ function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShou
   );
 }
 
-function BallotDialog({ topThree, works, onClose }: { topThree: string[]; works: RoomWork[]; onClose: () => void }) {
+function BallotDialog({ topThree, works, state, error, capability, onCast, onClose }: { topThree: string[]; works: RoomWork[]; state: "idle" | "connecting" | "world" | "preparing" | "approving" | "confirming" | "granted"; error: string | null; capability: BallotCapability | null; onCast: () => void; onClose: () => void }) {
   const rankedWorks = topThree.map((id) => works.find((work) => work.id === id)).filter((work): work is RoomWork => Boolean(work));
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
@@ -380,9 +418,11 @@ function BallotDialog({ topThree, works, onClose }: { topThree: string[]; works:
         <header><div><p className="kicker">FORMAL BALLOT</p><h2 id="ballot-title">Review your Top 3</h2></div><button className="icon-button" type="button" onClick={onClose} aria-label="Close ballot review"><X /></button></header>
         <ol className="ballot-ranking">{rankedWorks.map((work, index) => <li key={work.id}><span>{index + 1}</span><img src={work.cover_url} alt="" /><div><strong>{work.title}</strong><small>{work.chapter}</small></div></li>)}</ol>
         {rankedWorks.length < 3 && <p className="ballot-warning">Choose {3 - rankedWorks.length} more work{rankedWorks.length === 2 ? "" : "s"} before casting your ballot.</p>}
-        <div className="trust-strip"><span>Orb-verified human</span><span>Unique in this Room</span><span>HashPack signed</span></div>
-        <a className={rankedWorks.length === 3 ? "primary-action full" : "primary-action full disabled"} href={rankedWorks.length === 3 ? "https://ethglobal-lisbon2026-oshikatsu.web.app/?wallet-test=1" : undefined}>Continue to verified ballot</a>
-        <p className="dialog-note">The verified integration opens separately so this Reader UI cannot alter the validated PoC.</p>
+        <div className="trust-strip"><span>Production World proof</span><span>Room-unique capability</span><span>HashPack payer bound</span></div>
+        <button className="primary-action full" type="button" disabled={rankedWorks.length !== 3 || !["idle", "granted"].includes(state)} onClick={onCast}>{state === "idle" ? "Cast verified ballot" : state === "connecting" ? "Connect HashPack" : state === "world" ? "Verify in World App" : state === "preparing" ? "Binding proof to ballot" : state === "approving" ? "Approve ballot in HashPack" : state === "confirming" ? "Confirming on Mirror" : "Capability granted"}</button>
+        {error && <p className="dialog-note" role="alert">{error}</p>}
+        {capability && <p className="dialog-note" role="status">Sequence #{capability.sequence_number} · {capability.account_id}<br />{capability.event_hash}</p>}
+        <p className="dialog-note">Formal success appears only after World verification, wallet signature, Mirror exact match, and Room uniqueness checks.</p>
       </section>
     </div>
   );

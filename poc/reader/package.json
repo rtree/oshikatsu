@@ -17,6 +17,8 @@
     "@hiero-ledger/proto": "2.31.0",
     "@hiero-ledger/sdk": "2.79.0",
     "@reown/appkit": "1.8.23",
+    "@worldcoin/idkit": "^4.2.1",
+    "@worldcoin/idkit-core": "^4.2.2",
     "lucide-react": "^0.468.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"

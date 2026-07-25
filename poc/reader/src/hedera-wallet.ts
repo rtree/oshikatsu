@@ -7,7 +7,12 @@ import {
 } from "@hashgraph/hedera-wallet-connect";
 import { TopicMessageSubmitTransaction } from "@hiero-ledger/sdk";
 import { createAppKit } from "@reown/appkit";
-import type { GroovePreparation } from "./groove-api";
+type PreparedMessage = {
+  topic_id: string;
+  account_id: string;
+  message_base64: string;
+  message_bytes: number;
+};
 
 const projectId = import.meta.env.VITE_REOWN_PROJECT_ID;
 type AppKitInstance = ReturnType<typeof createAppKit>;
@@ -65,7 +70,7 @@ export async function requireHashPackAccount() {
   return { accountId: account.slice("hedera:testnet:".length), signerAccountId: account };
 }
 
-export async function submitPreparedGroove(preparation: GroovePreparation, signerAccountId: string) {
+export async function submitPreparedMessage(preparation: PreparedMessage, signerAccountId: string) {
   const accountId = signerAccountId.slice("hedera:testnet:".length);
   if (accountId !== preparation.account_id) throw new Error("Prepared payer does not match HashPack.");
   const bytes = Uint8Array.from(atob(preparation.message_base64), (character) => character.charCodeAt(0));
@@ -83,3 +88,6 @@ export async function submitPreparedGroove(preparation: GroovePreparation, signe
   });
   return String(result.transactionId);
 }
+
+export const submitPreparedGroove = submitPreparedMessage;
+export const submitPreparedBallot = submitPreparedMessage;

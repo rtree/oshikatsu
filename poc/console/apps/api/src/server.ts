@@ -4,6 +4,7 @@ import { hashSignal } from "@worldcoin/idkit-core/hashing";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { environment, getWorldIdEnvironment } from "./config.js";
+import { ballotPrepareSchema, ballotRequestSchema, createBallotRequest, getBallotStatus, listCapabilities, prepareBallot } from "./ballots.js";
 import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove } from "./groove.js";
 import { createRoom, createRoomSchema, getRoom, getRoomAction, listRooms, roomIdSchema } from "./rooms.js";
 
@@ -160,12 +161,30 @@ app.get("/api/projection/rooms/:roomId", async (request, response) => {
     response.json({
       room,
       groove: await listConfirmedGroove(room.id),
-      ballot: { status: "PENDING" },
+      ballot: { status: "PENDING", capabilities: await listCapabilities(room.id) },
       revision: new Date().toISOString(),
     });
   } catch {
     response.status(400).json({ error: "Invalid Room projection request." });
   }
+});
+
+app.post("/api/ballots/request", async (request, response) => {
+  const parsed = ballotRequestSchema.safeParse(request.body);
+  if (!parsed.success) { response.status(400).json({ error: "Invalid ballot intent." }); return; }
+  try { response.json(await createBallotRequest(parsed.data)); } catch (error) { response.status(400).json({ error: error instanceof Error ? error.message : "Ballot request failed." }); }
+});
+
+app.post("/api/ballots/prepare", async (request, response) => {
+  const parsed = ballotPrepareSchema.safeParse(request.body);
+  if (!parsed.success) { response.status(400).json({ error: "Invalid ballot proof." }); return; }
+  try { response.status(201).json({ preparation: await prepareBallot(parsed.data) }); } catch (error) { response.status(400).json({ error: error instanceof Error ? error.message : "Ballot preparation failed." }); }
+});
+
+app.get("/api/ballots/status/:transactionId", async (request, response) => {
+  const prepareId = typeof request.query.prepare_id === "string" ? request.query.prepare_id : "";
+  if (!/^ballot-[0-9a-f]{32}$/.test(prepareId)) { response.status(400).json({ error: "A valid prepare_id is required." }); return; }
+  try { response.json(await getBallotStatus(prepareId, request.params.transactionId)); } catch (error) { response.status(400).json({ error: error instanceof Error ? error.message : "Ballot status failed." }); }
 });
 
 app.post("/api/world-id/request", async (request, response) => {

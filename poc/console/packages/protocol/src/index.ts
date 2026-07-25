@@ -47,6 +47,27 @@ export type GrooveEvent = {
   e: string;
 };
 
+export type BallotEventInput = {
+  ballotId: string;
+  roomId: string;
+  manifestHash: string;
+  nomineeIds: [string, string, string];
+  accountId: string;
+  worldEvidenceHash: string;
+};
+
+export type BallotEvent = {
+  v: 1;
+  t: "b";
+  r: string;
+  i: string;
+  m: string;
+  n: [string, string, string];
+  a: string;
+  w: string;
+  e: string;
+};
+
 function fail(message: string): never {
   throw new Error(message);
 }
@@ -138,5 +159,67 @@ export function decodeGrooveEvent(bytes: Uint8Array): GrooveEvent {
   if (event.e !== value.e) fail("Event hash is invalid.");
   const canonical = encodeGrooveEvent(input);
   if (!Buffer.from(canonical).equals(Buffer.from(bytes))) fail("Event JSON is not canonical.");
+  return event;
+}
+
+function validateBallotInput(input: BallotEventInput) {
+  if (!ID_PATTERN.test(input.roomId) || !ID_PATTERN.test(input.ballotId)) {
+    fail("Room and ballot ids must be canonical lowercase ids.");
+  }
+  if (!HASH_PATTERN.test(input.manifestHash) || !HASH_PATTERN.test(input.worldEvidenceHash)) {
+    fail("Manifest and World evidence hashes must be lowercase SHA-256 hex.");
+  }
+  if (!ACCOUNT_PATTERN.test(input.accountId)) fail("Account id must be a Hedera account id.");
+  if (input.nomineeIds.some((id) => !ID_PATTERN.test(id)) || new Set(input.nomineeIds).size !== 3) {
+    fail("Ballot requires three distinct canonical nominee ids.");
+  }
+}
+
+export function createBallotEvent(input: BallotEventInput): BallotEvent {
+  validateBallotInput(input);
+  const body = {
+    v: 1 as const,
+    t: "b" as const,
+    r: input.roomId,
+    i: input.ballotId,
+    m: input.manifestHash,
+    n: input.nomineeIds,
+    a: input.accountId,
+    w: input.worldEvidenceHash,
+  };
+  return { ...body, e: domainHash("oshikatsu:ballot:v1", body) };
+}
+
+export function encodeBallotEvent(input: BallotEventInput) {
+  const bytes = encoder.encode(canonicalJson(createBallotEvent(input)));
+  if (bytes.length > MAX_EVENT_BYTES) fail(`Event is ${bytes.length} bytes; maximum is 900.`);
+  return bytes;
+}
+
+export function decodeBallotEvent(bytes: Uint8Array): BallotEvent {
+  if (bytes.length === 0 || bytes.length > MAX_EVENT_BYTES) fail("Event must contain 1-900 UTF-8 bytes.");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(decoder.decode(bytes));
+  } catch {
+    return fail("Event is not strict UTF-8 JSON.");
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) fail("Event must be an object.");
+  const value = parsed as Record<string, unknown>;
+  assertKeys(value, ["v", "t", "r", "i", "m", "n", "a", "w", "e"]);
+  if (value.v !== 1 || value.t !== "b" || !Array.isArray(value.n) || value.n.length !== 3 || typeof value.e !== "string") {
+    fail("Ballot event shape is invalid.");
+  }
+  const input: BallotEventInput = {
+    roomId: String(value.r),
+    ballotId: String(value.i),
+    manifestHash: String(value.m),
+    nomineeIds: value.n.map(String) as [string, string, string],
+    accountId: String(value.a),
+    worldEvidenceHash: String(value.w),
+  };
+  const event = createBallotEvent(input);
+  if (event.e !== value.e) fail("Event hash is invalid.");
+  if (!Buffer.from(encodeBallotEvent(input)).equals(Buffer.from(bytes))) fail("Event JSON is not canonical.");
   return event;
 }
