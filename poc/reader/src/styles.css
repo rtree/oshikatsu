@@ -1,0 +1,68 @@
+:root {
+  color: #241c1a;
+  background: #f7f1e8;
+  font-family: "Avenir Next", "Hiragino Sans", sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+.reader-shell {
+  min-height: 100vh;
+}
+
+.reader-header,
+.room-stage {
+  padding: 40px max(24px, calc((100vw - 1120px) / 2));
+}
+
+.reader-header {
+  border-bottom: 1px solid #cfc3b5;
+}
+
+.eyebrow,
+.room-status {
+  margin: 0 0 8px;
+  color: #b3261e;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 8px;
+  font-family: Baskerville, "Yu Mincho", serif;
+  font-size: clamp(3rem, 8vw, 6rem);
+  line-height: 0.95;
+}
+
+.room-stage {
+  min-height: 55vh;
+  display: grid;
+  align-items: center;
+  background: #d94738;
+  color: #fffaf2;
+}
+
+.room-stage h2 {
+  margin-bottom: 12px;
+  font-family: Baskerville, "Yu Mincho", serif;
+  font-size: clamp(2rem, 6vw, 4.5rem);
+}
+
+.room-stage .room-status {
+  color: #fff3a6;
+}

@@ -528,6 +528,22 @@
         "/^gh issue list --repo rtree/oshikatsu --state open --limit 20 --json number,title,labels,url \\| node -e 'let s=\"\";process\\.stdin\\.on\\(\"data\",d=>s\\+=d\\)\\.on\\(\"end\",\\(\\)=>console\\.log\\(JSON\\.parse\\(s\\)\\.map\\(i=>`#\\$\\{i\\.number\\} \\$\\{i\\.title\\}`\\)\\.join\\(\"\\\\n\"\\)\\)\\)'$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^npm --prefix /Users/araki/operations/oshikatsu/poc/reader install && npm --prefix /Users/araki/operations/oshikatsu/poc/reader run check && npm --prefix /Users/araki/operations/oshikatsu/poc/reader run build && npm --prefix /Users/araki/operations/oshikatsu/poc/console run check --workspace @oshikatsu/web && npm --prefix /Users/araki/operations/oshikatsu/poc/console run build --workspace @oshikatsu/web$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^printf 'reader-lock='; test -f /Users/araki/operations/oshikatsu/poc/reader/package-lock\\.json && print PRESENT \\|\\| print MISSING\nprintf 'console-lock='; test -f /Users/araki/operations/oshikatsu/poc/console/package-lock\\.json && print PRESENT \\|\\| print MISSING\nnpm --prefix /Users/araki/operations/oshikatsu/poc/reader ls --depth=0 2>/dev/null$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git status --short && printf '\\\\nPoC tracked changes:\\\\n'; git status --short -- poc/console/apps/web poc/console/package-lock\\.json poc/console/firebase\\.json$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm --prefix /Users/araki/operations/oshikatsu/poc/reader audit --omit=dev --json \\| node -e 'let s=\"\";process\\.stdin\\.on\\(\"data\",d=>s\\+=d\\)\\.on\\(\"end\",\\(\\)=>console\\.log\\(\"reader-vulnerabilities=\"\\+JSON\\.parse\\(s\\)\\.metadata\\.vulnerabilities\\.total\\)\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
