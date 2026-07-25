@@ -4,7 +4,7 @@ import { hashSignal } from "@worldcoin/idkit-core/hashing";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { environment, getWorldIdEnvironment } from "./config.js";
-import { getRoom, getRoomAction, roomIdSchema, rooms } from "./rooms.js";
+import { createRoom, createRoomSchema, getRoom, getRoomAction, listRooms, roomIdSchema } from "./rooms.js";
 
 const app = express();
 
@@ -89,11 +89,41 @@ app.get("/api/health", (_request, response) => {
   });
 });
 
-app.get("/api/rooms", (_request, response) => {
-  response.json({ rooms });
+app.get("/api/rooms", async (_request, response) => {
+  try {
+    response.json({ rooms: await listRooms() });
+  } catch {
+    response.status(503).json({ error: "Room storage is unavailable." });
+  }
 });
 
-app.post("/api/world-id/request", (request, response) => {
+app.post("/api/rooms", async (request, response) => {
+  const parsed = createRoomSchema.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: "Invalid Room manifest input.", issues: parsed.error.issues });
+    return;
+  }
+  try {
+    response.status(201).json({ room: await createRoom(parsed.data) });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : "Room creation failed." });
+  }
+});
+
+app.get("/api/rooms/:roomId", async (request, response) => {
+  try {
+    const room = await getRoom(request.params.roomId);
+    if (!room) {
+      response.status(404).json({ error: "Room not found." });
+      return;
+    }
+    response.json({ room });
+  } catch {
+    response.status(400).json({ error: "Invalid Room id." });
+  }
+});
+
+app.post("/api/world-id/request", async (request, response) => {
   const parsed = proofRequestSchema.safeParse(request.body);
   if (!parsed.success) {
     response.status(400).json({ error: "Unknown room." });
@@ -103,7 +133,11 @@ app.post("/api/world-id/request", (request, response) => {
   try {
     const worldId = getWorldIdEnvironment();
     const roomId = parsed.data.room_id;
-    const room = getRoom(roomId);
+    const room = await getRoom(roomId);
+    if (!room) {
+      response.status(404).json({ error: "Unknown room." });
+      return;
+    }
     const action = getRoomAction(roomId);
     const signature = signRequest({
       action,
@@ -114,7 +148,7 @@ app.post("/api/world-id/request", (request, response) => {
 
     response.json({
       action,
-      action_description: room.actionDescription,
+      action_description: room.action_description,
       app_id: worldId.appId,
       context_token: signProofContext(
         {
