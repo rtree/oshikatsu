@@ -210,7 +210,7 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 ### 画面名：ホーム
 
 この画面ですること：
-    初回登録の開始画面。登録後は、次のRoomが開く時間と参加できる漫画の気配を伝え、読者を共有時間へ招く起点になる場所。新刊発売日の高揚感。ファンミ会場のイメージを伝える重要な画面
+    初回登録の開始画面。登録後は、次のRoomが開く時間と参加できる漫画の気配を伝え、読者を共有時間へ招く起点になる場所。新刊発売日の高揚感。ライブ会場のイメージを伝える重要な画面
 
 - 領域名：推し活を始める
     - 領域の目的や機能：初回登録前にWallet登録に進むためのボタンを表示する場所
@@ -220,7 +220,7 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 
 - 領域名：Roomの入口
     - 領域の目的や機能：初回登録以降に表示される。Roomのタイトル、現在のphase（開催時刻までのカウントダウンなど）を示す。複数並んでいて、現在Voteを受付中のRoomが一番上。次にこれから始まる開始前のRoomが並んでいる
-    - 領域のデザインのテイスト：新刊発売日の高揚感。ファンミ会場のイメージ
+    - 領域のデザインのテイスト：新刊発売日の高揚感。ライブ会場のイメージ
     - 内部にある部品
         - Room: 
             - Roomタイトル：今週参加する共有時間を識別する。例：`Weekly Chapter Drop`
@@ -243,170 +243,156 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 ### 画面名：Room画面
 
 この画面ですること：
-    推し活のファンミ会場
-    
-領域名：Room countdown
+    推し活のライブ会場
 
-- 領域の目的や機能：phaseと残り時間を示す
-- 領域のデザインのテイスト：ライブイベントの開演時計。時間を第一視線に置く
-- 内部にある部品
-   - Phase表示：internal stateを`Nominations Open`、`Live Now`、`Ballots Closed`、`Results Ready`へ変換する
-   - Countdown：`Room Opens In`または`Ballots Close In`として次のphaseまでを示す
-   - Room入場：`Enter the Room`でライブRoomへ進む
+- 領域名：Room countdown
+    - 領域の目的や機能：phaseと残り時間を示す
+    - 領域のデザインのテイスト：ライブイベントの開演時計。時間を第一視線に置く
+    - 内部にある部品
+        - Phase表示：internal stateを`Nominations Open`、`Live Now`、`Ballots Closed`、`Results Ready`へ変換する
+        - Countdown：`Room Opens In`または`Ballots Close In`として次のphaseまでを示す
+        - Room入場：`Enter the Room`でライブRoomへ進む
 
-領域名：Lineup
-
-- 領域の目的や機能：manifestに固定された作品を一覧する
-- 領域のデザインのテイスト：週刊誌の目次と書店の新刊台を組み合わせる
-- 内部にある部品
-   - Lineup：cover stackと`Tonight's Lineup`で候補作品の全体像を伝える
-   - Locked state：`Lineup Locked`を表示する
-   - Manifest識別子：`Room Details`内でcandidate-set hashとmanifest hashを確認できるようにする
+- 領域名：Lineup
+    - 領域の目的や機能：manifestに固定された作品を一覧する
+    - 領域のデザインのテイスト：週刊誌の目次と書店の新刊台を組み合わせる
+    - 内部にある部品
+        - Lineup：cover stackと`Tonight's Lineup`で候補作品の全体像を伝える
+        - Locked state：`Lineup Locked`を表示する
+        - Manifest識別子：`Room Details`内でcandidate-set hashとmanifest hashを確認できるようにする
 
 ### 画面名：Nominee受付
 
 この画面ですること：
 ReaderがNomination Window中に一作品を候補として提案し、候補集合の成長を共有する。
 
-領域名：候補一覧
+- 領域名：候補一覧
+    - 領域の目的や機能：現在集まっているNomineeと提案者の仮名accountを示す
+    - 領域のデザインのテイスト：推薦棚。表紙を中心に、推薦の連鎖を感じる構成
+    - 内部にある部品
+        - Nominee item：漫画名、話数、表紙、reading locationを示す
+        - Nominated by：表示名または短縮Hedera accountを示す
+        - Added at：候補がHCS consensusへ到達した時刻を示す
 
-- 領域の目的や機能：現在集まっているNomineeと提案者の仮名accountを示す
-- 領域のデザインのテイスト：推薦棚。表紙を中心に、推薦の連鎖を感じる構成
-- 内部にある部品
-   - Nominee item：漫画名、話数、表紙、reading locationを示す
-   - Nominated by：表示名または短縮Hedera accountを示す
-   - Added at：候補がHCS consensusへ到達した時刻を示す
-
-領域名：一作品を推薦
-
-- 領域の目的や機能：Readerが推したい作品の情報を入力し、Nominee eventを作る
-- 領域のデザインのテイスト：投稿フォームより推薦カードの作成体験を優先する
-- 内部にある部品
-   - 漫画情報：title、chapter、cover、reading locationを入力する
-   - Nominee preview：Room内での見え方を確認する
-   - Nominate action：`Review Nomination`からWallet署名へ渡すNominee intentを作る
-   - Window notice：`Nominations lock when the Room opens.`
+- 領域名：一作品を推薦
+    - 領域の目的や機能：Readerが推したい作品の情報を入力し、Nominee eventを作る
+    - 領域のデザインのテイスト：投稿フォームより推薦カードの作成体験を優先する
+    - 内部にある部品
+        - 漫画情報：title、chapter、cover、reading locationを入力する
+        - Nominee preview：Room内での見え方を確認する
+        - Nominate action：`Review Nomination`からWallet署名へ渡すNominee intentを作る
+        - Window notice：`Nominations lock when the Room opens.`
 
 ### 画面名：ライブRoom
 
 この画面ですること：
 複数作品のGrooveを同時に眺め、読みたい作品と推したい作品を選ぶ。
 
-領域名：Room pulse
+- 領域名：Room pulse
+    - 領域の目的や機能：Room全体の参加人数、残り時間、Grooveの勢いを示す
+    - 領域のデザインのテイスト：ライブ実況。動きと密度を持たせる
+    - 内部にある部品
+        - Fans Here：active presenceを示す
+        - Verified Voters：成立済みRoom capability数を示す
+        - Ballots Close In：logical event completionの残り時間を示す
+        - Live Groove：直近のReactionとShoutを示す
 
-- 領域の目的や機能：Room全体の参加人数、残り時間、Grooveの勢いを示す
-- 領域のデザインのテイスト：ライブ実況。動きと密度を持たせる
-- 内部にある部品
-   - Fans Here：active presenceを示す
-   - Verified Voters：成立済みRoom capability数を示す
-   - Ballots Close In：logical event completionの残り時間を示す
-   - Live Groove：直近のReactionとShoutを示す
+- 領域名：作品一覧
+    - 領域の目的や機能：各作品の最新Grooveと主要emotionを比較する
+    - 領域のデザインのテイスト：縦に読み進める漫画目次。表紙、作品名、波形を一体化する
+    - 内部にある部品
+        - 作品card：表紙、title、chapterを示す
+        - Mini GrooveWave：反応量と時間変化を示す
+        - Top Reaction：代表的なReaction labelとcountを示す
+        - Chapter action：`Open Groove`で作品詳細へ進む
 
-領域名：作品一覧
-
-- 領域の目的や機能：各作品の最新Grooveと主要emotionを比較する
-- 領域のデザインのテイスト：縦に読み進める漫画目次。表紙、作品名、波形を一体化する
-- 内部にある部品
-   - 作品card：表紙、title、chapterを示す
-   - Mini GrooveWave：反応量と時間変化を示す
-   - Top Reaction：代表的なReaction labelとcountを示す
-   - Chapter action：`Open Groove`で作品詳細へ進む
-
-領域名：Top 3入口
-
-- 領域の目的や機能：現在選択しているTop 3の数と投票画面への導線を示す
-- 領域のデザインのテイスト：画面下部に安定して見える強いaction bar
-- 内部にある部品
-   - Selection count：`{selected} of 3 picked`で現在のranking候補数を示す
-   - Ballot action：`Build Your Top 3`でTop 3編集へ進む
+- 領域名：Top 3入口
+    - 領域の目的や機能：現在選択しているTop 3の数と投票画面への導線を示す
+    - 領域のデザインのテイスト：画面下部に安定して見える強いaction bar
+    - 内部にある部品
+        - Selection count：`{selected} of 3 picked`で現在のranking候補数を示す
+        - Ballot action：`Build Your Top 3`でTop 3編集へ進む
 
 ### 画面名：作品Groove
 
 この画面ですること：
 一作品を読み、他のReaderの反応を感じ、自分のスタンプと叫びをGrooveへ加える。
 
-領域名：作品hero
+- 領域名：作品hero
+    - 領域の目的や機能：作品、chapter、reading locationを提示する
+    - 領域のデザインのテイスト：表紙をfull-bleedで扱い、作品世界へ入る
+    - 内部にある部品
+        - Cover：作品を視覚的に識別する
+        - Chapter情報：今回の話を識別する
+        - Read action：`Read Official Chapter`で公式reading locationへ進む
 
-- 領域の目的や機能：作品、chapter、reading locationを提示する
-- 領域のデザインのテイスト：表紙をfull-bleedで扱い、作品世界へ入る
-- 内部にある部品
-   - Cover：作品を視覚的に識別する
-   - Chapter情報：今回の話を識別する
-   - Read action：`Read Official Chapter`で公式reading locationへ進む
+- 領域名：Live GrooveWave
+    - 領域の目的や機能：時間ごとの反応量、emotion分布、Readerの叫びを示す
+    - 領域のデザインのテイスト：音楽のwaveformとコメントstreamを組み合わせる
+    - 内部にある部品
+        - Wave chart：Room開始から現在までの熱を示す
+        - Emotion distribution：スタンプの分布を示す
+        - Shout stream：HCS順にReaderの叫びを示す
 
-領域名：Live GrooveWave
-
-- 領域の目的や機能：時間ごとの反応量、emotion分布、Readerの叫びを示す
-- 領域のデザインのテイスト：音楽のwaveformとコメントstreamを組み合わせる
-- 内部にある部品
-   - Wave chart：Room開始から現在までの熱を示す
-   - Emotion distribution：スタンプの分布を示す
-   - Shout stream：HCS順にReaderの叫びを示す
-
-領域名：自分の推し
-
-- 領域の目的や機能：スタンプと叫びを選び、Groove eventを作る
-- 領域のデザインのテイスト：感情の強さを保つ大きなスタンプと短い入力欄
-- 内部にある部品
-   - Reaction palette：canonical Reaction vocabularyから感情を選ぶ
-   - Shout input：`Drop your post-chapter scream...`へ短い感想を入力する
-   - Groove action：`Send to the Groove`でwork、Reaction、Shout、accountを束ねたintentを作る
-   - Top 3 action：`Add to My Top 3` / `Remove from My Top 3`を切り替える
+- 領域名：自分の推し
+    - 領域の目的や機能：スタンプと叫びを選び、Groove eventを作る
+    - 領域のデザインのテイスト：感情の強さを保つ大きなスタンプと短い入力欄
+    - 内部にある部品
+        - Reaction palette：canonical Reaction vocabularyから感情を選ぶ
+        - Shout input：`Drop your post-chapter scream...`へ短い感想を入力する
+        - Groove action：`Send to the Groove`でwork、Reaction、Shout、accountを束ねたintentを作る
+        - Top 3 action：`Add to My Top 3` / `Remove from My Top 3`を切り替える
 
 ### 画面名：Top 3 Ballot
 
 この画面ですること：
 三作品を順位付けし、初回投票または投票更新の意思を確定する。
 
-領域名：Ranking editor
+- 領域名：Ranking editor
+    - 領域の目的や機能：三作品の順序と3/2/1 point ruleを示す
+    - 領域のデザインのテイスト：投票用紙の明快さと漫画表紙の強さを両立する
+    - 内部にある部品
+        - Ranked work：`1st`、`2nd`、`3rd`、表紙、title、chapterを示す
+        - Reorder control：drag handleとMove Up / Move Downで作品順位を変更する
+        - Point guide：`1st: 3 pts · 2nd: 2 pts · 3rd: 1 pt`を示す
 
-- 領域の目的や機能：三作品の順序と3/2/1 point ruleを示す
-- 領域のデザインのテイスト：投票用紙の明快さと漫画表紙の強さを両立する
-- 内部にある部品
-   - Ranked work：`1st`、`2nd`、`3rd`、表紙、title、chapterを示す
-   - Reorder control：drag handleとMove Up / Move Downで作品順位を変更する
-   - Point guide：`1st: 3 pts · 2nd: 2 pts · 3rd: 1 pt`を示す
-
-領域名：Formal intent
-
-- 領域の目的や機能：初回ballot、update、revokeのうち現在のactionを示す
-- 領域のデザインのテイスト：署名直前の静かな確認領域
-- 内部にある部品
-   - Action type：`New Ballot`、`Ballot Update`、`Ballot Withdrawal`を示す
-   - HashPack account：payerとなるaccountとnetworkを示す
-   - Completion deadline：logical event completionの期限を示す
-   - Network fee：見積額または`Estimated in HashPack`を示す
-   - Formal action：`Verify and Submit`、`Update Ballot`、`Withdraw Ballot`のいずれかで次へ進む
+- 領域名：Formal intent
+    - 領域の目的や機能：初回ballot、update、revokeのうち現在のactionを示す
+    - 領域のデザインのテイスト：署名直前の静かな確認領域
+    - 内部にある部品
+        - Action type：`New Ballot`、`Ballot Update`、`Ballot Withdrawal`を示す
+        - HashPack account：payerとなるaccountとnetworkを示す
+        - Completion deadline：logical event completionの期限を示す
+        - Network fee：見積額または`Estimated in HashPack`を示す
+        - Formal action：`Verify and Submit`、`Update Ballot`、`Withdraw Ballot`のいずれかで次へ進む
 
 ### 画面名：Ballot記録確認
 
 この画面ですること：
 Readerへ現在の正式状態、HCS位置、World検証状態を返し、Roomへ復帰させる。
 
-領域名：記録結果
-
-- 領域の目的や機能：CAPABILITY_GRANTED、BALLOT_UPDATED、BALLOT_REVOKEDの結果を示す
-- 領域のデザインのテイスト：Reader-facing resultを第一視線にし、検証可能性は展開可能なdetailsとして保つ
-- 内部にある部品
-   - Result title：`Your ballot counts`、`Ballot updated`、`Ballot withdrawn`のいずれかを示す
-   - Current Top 3：revoke以外で現在のformal intentを示す
-   - Verification Details：展開時にTopic / sequence、consensus timestamp、World anchor、manifest hashを示す
-   - Back action：`Back to the Groove`でライブRoomへ進む
+- 領域名：記録結果
+    - 領域の目的や機能：CAPABILITY_GRANTED、BALLOT_UPDATED、BALLOT_REVOKEDの結果を示す
+    - 領域のデザインのテイスト：Reader-facing resultを第一視線にし、検証可能性は展開可能なdetailsとして保つ
+    - 内部にある部品
+        - Result title：`Your ballot counts`、`Ballot updated`、`Ballot withdrawn`のいずれかを示す
+        - Current Top 3：revoke以外で現在のformal intentを示す
+        - Verification Details：展開時にTopic / sequence、consensus timestamp、World anchor、manifest hashを示す
+        - Back action：`Back to the Groove`でライブRoomへ進む
 
 ### 画面名：Room結果
 
 この画面ですること：
 deadlineまでの最後の意思を集計したrankingと、そのRoomのGrooveWaveを見返す。
 
-領域名：今週のranking
-
-- 領域の目的や機能：順位、point、有効capability数を示す
-- 領域のデザインのテイスト：雑誌の巻頭ランキング。winnerの表紙を大きく扱う
-- 内部にある部品
-   - Winner feature：`Tonight's Winner`として一位作品を示す
-   - Final Ranking：全作品の順位とpointを示す
-   - Verification summary：`Verified Ballots`、cutoff、accepted ballot数を要約する
-   - Verify Results：manifest hash、result hash、public replayへ進む
+- 領域名：今週のranking
+    - 領域の目的や機能：順位、point、有効capability数を示す
+    - 領域のデザインのテイスト：雑誌の巻頭ランキング。winnerの表紙を大きく扱う
+    - 内部にある部品
+        - Winner feature：`Tonight's Winner`として一位作品を示す
+        - Final Ranking：全作品の順位とpointを示す
+        - Verification summary：`Verified Ballots`、cutoff、accepted ballot数を要約する
+        - Verify Results：manifest hash、result hash、public replayへ進む
 
 領域名：Room replay
 
@@ -448,7 +434,7 @@ WalletはPoCではHashPack一択とする。この画面は専用にあるとい
 領域名：Wallet選択
 
 - 領域の目的や機能：HashPackと接続中accountを示す。Wallet接続が必要なタイミングで表示され、Worldによる人間認証やVoteの署名をKickする
-- 領域のデザインのテイスト：静かで明快。自己管理する鍵への信頼感を出す。でもベースはファンミ会場
+- 領域のデザインのテイスト：静かで明快。自己管理する鍵への信頼感を出す。でもベースはライブ会場
 - 内部にある部品
    - HashPack identity：公式brand assetと`HashPack`を示す
    - Connected account：接続後にHedera account IDとnetworkを確認する
