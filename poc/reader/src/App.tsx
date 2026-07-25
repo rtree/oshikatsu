@@ -13,7 +13,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type Room, type RoomWork } from "./rooms-api";
+import { createRoom, fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type Room, type RoomWork } from "./rooms-api";
 import { prepareGroove, waitForGrooveConfirmation, type GrooveStatus } from "./groove-api";
 
 type View = "home" | "room" | "rankings" | "shelf" | "profile";
@@ -40,6 +40,16 @@ const reactions = [
   { id: "wrecked", icon: "/assets/ico19.webp", label: "Emotionally Wrecked", count: "6,118" },
   { id: "losing", icon: "/assets/ico20.webp", label: "I'm Losing It", count: "5,430" },
 ];
+
+function formatDeadline(deadline: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(new Date(deadline));
+}
 
 export function App() {
   const [view, setView] = useState<View>("home");
@@ -155,7 +165,7 @@ export function App() {
       )}
       {view === "rankings" && <RankingsView works={selectedRoom?.works ?? []} roomName={selectedRoom?.name} />}
       {view === "shelf" && <ShelfView topThree={topThree} works={selectedRoom?.works ?? []} />}
-      {view === "profile" && <ProfileView />}
+      {view === "profile" && <ProfileView onRoomCreated={() => void loadRooms()} />}
 
       <BottomNav view={view} onNavigate={setView} />
 
@@ -196,8 +206,8 @@ function HomeView({ roomsState, onEnterRoom, onRetry }: { roomsState: RoomsState
           <p className="hero-copy">Five new chapters. One shared night. Enter the Room and find the story everyone is shouting about.</p>
           <div className="hero-actions"><button className="primary-action" type="button" onClick={() => featuredRoom && onEnterRoom(featuredRoom)} disabled={!featuredRoom}>Join the Groove <Sparkles size={20} /></button><button className="browse-action" type="button" onClick={() => document.getElementById("rooms-title")?.scrollIntoView({ behavior: "smooth" })}>Browse First</button></div>
           <div className="live-stats">
-            <span><UsersRound size={17} /> 28,431 in the Room</span>
-            <span><Clock3 size={17} /> Voting closes in 01:42:18</span>
+            <span><UsersRound size={17} /> {rooms.length} durable Room{rooms.length === 1 ? "" : "s"}</span>
+            <span><Clock3 size={17} /> {featuredRoom ? `Closes ${formatDeadline(featuredRoom.deadline)}` : "Room schedule unavailable"}</span>
           </div>
         </div>
       </section>
@@ -272,7 +282,7 @@ function RoomView({ room, work, selectedWorkId, topThree, projectionState, onBac
             <p className="kicker">NOW IN THE GROOVE</p>
             <h1 id="work-title">{work.title}</h1>
             <p>{work.chapter} · Activity pending</p>
-            <div className="room-facts"><span><UsersRound size={16} /> 28,431 in the Room</span><span><Clock3 size={16} /> Closes in 01:42:18</span></div>
+            <div className="room-facts"><span><UsersRound size={16} /> {projectionState.status === "ready" ? `${projectionState.events.length} confirmed event${projectionState.events.length === 1 ? "" : "s"}` : "Activity unavailable"}</span><span><Clock3 size={16} /> Closes {formatDeadline(room.deadline)}</span></div>
             <a className="read-link" href={work.reading_url} target="_blank" rel="noreferrer"><BookOpen size={18} /> Read Official Chapter</a>
           </div>
           <div className="work-actions">
@@ -399,12 +409,43 @@ function ShelfView({ topThree, works }: { topThree: string[]; works: RoomWork[] 
   );
 }
 
-function ProfileView() {
+function ProfileView({ onRoomCreated }: { onRoomCreated: () => void }) {
+  const [name, setName] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [createdRoom, setCreatedRoom] = useState<Room | null>(null);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCreating(true);
+    setError(null);
+    setCreatedRoom(null);
+    try {
+      const room = await createRoom({
+        name,
+        opens_at: new Date().toISOString(),
+        deadline: new Date(deadline).toISOString(),
+        topic_id: "0.0.9745676",
+        works: [
+          { id: "work-one", title: "First Work", chapter: "Chapter 1", cover_url: `${window.location.origin}/assets/sample01.webp`, hero_url: null, reading_url: "https://www.webtoons.com/" },
+          { id: "work-two", title: "Second Work", chapter: "Chapter 1", cover_url: `${window.location.origin}/assets/sample02.webp`, hero_url: null, reading_url: "https://www.webtoons.com/" },
+        ],
+      });
+      setCreatedRoom(room);
+      onRoomCreated();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Room creation failed.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
     <main className="page collection-page">
-      <header className="profile-hero"><div className="profile-avatar">R</div><div><p className="kicker">PSEUDONYMOUS READER</p><h1>Reader 9706</h1><p>Hedera testnet identity · public activity only</p></div></header>
-      <section className="badge-grid"><article><Medal /><strong>Rooms Joined</strong><span>1</span></article><article><Sparkles /><strong>Reactions</strong><span>1</span></article><article><LibraryBig /><strong>Works Shelved</strong><span>3</span></article></section>
-      <section className="create-room"><p className="kicker">HOST A SHARED MOMENT</p><h2>Create a Room</h2><p>Room creation UI is next. Manifest times and candidate sets will become immutable before voting opens.</p><button type="button" disabled>Create a Room · Not implemented</button></section>
+      <header className="profile-hero"><div className="profile-avatar">?</div><div><p className="kicker">WALLET IDENTITY</p><h1>Not connected</h1><p>Identity and public activity appear only after verified wallet evidence.</p></div></header>
+      <section className="badge-grid"><article><Medal /><strong>Rooms Joined</strong><span>—</span></article><article><Sparkles /><strong>Confirmed Reactions</strong><span>—</span></article><article><LibraryBig /><strong>Works Shelved</strong><span>Local</span></article></section>
+      <section className="create-room"><p className="kicker">HOST A SHARED MOMENT</p><h2>Create a Room</h2><p>This creates a durable Room manifest with two starter works on Hedera testnet topic 0.0.9745676.</p><form onSubmit={(event) => void submit(event)}><label>Room name<input required minLength={3} maxLength={80} value={name} onChange={(event) => setName(event.target.value)} placeholder="Friday Reader Night" /></label><label>Deadline<input required type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} /></label><button className="primary-action" type="submit" disabled={creating}>{creating ? "Creating durable Room" : "Create Room"}</button></form>{error && <p role="alert">{error}</p>}{createdRoom && <p role="status">Created {createdRoom.id}<br />Manifest {createdRoom.manifest_hash}</p>}</section>
     </main>
   );
 }

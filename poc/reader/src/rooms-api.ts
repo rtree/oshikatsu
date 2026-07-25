@@ -78,3 +78,21 @@ export async function fetchRoomProjection(roomId: string, signal?: AbortSignal) 
   }
   return projection;
 }
+
+export async function createRoom(input: {
+  name: string;
+  opens_at: string;
+  deadline: string;
+  topic_id: string;
+  works: RoomWork[];
+}) {
+  const response = await fetch("/api/rooms", {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const payload = await response.json() as { room?: unknown; error?: string };
+  if (!response.ok) throw new Error(payload.error ?? `Room creation returned HTTP ${response.status}.`);
+  if (!isRoom(payload.room)) throw new Error("Room creation returned an invalid response.");
+  return payload.room;
+}

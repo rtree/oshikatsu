@@ -169,7 +169,12 @@ h1, h2 { font-family: "Barlow Condensed", "Noto Sans JP", sans-serif; letter-spa
 .badge-grid article { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--outline); background: var(--surface); }
 .badge-grid svg { color: var(--magenta); }
 .badge-grid span { color: var(--cyan); font: 800 1.8rem "Barlow Condensed"; }
-.create-room button { min-height: 42px; padding: 0 14px; color: var(--muted); background: rgba(255,255,255,.06); cursor: not-allowed; }
+.create-room form { display: grid; gap: 14px; margin-top: 20px; }
+.create-room label { display: grid; gap: 7px; color: #eee8f4; font-size: .78rem; font-weight: 700; }
+.create-room input { width: 100%; min-height: 46px; padding: 0 12px; border: 1px solid var(--outline); border-radius: 4px; color: white; background: rgba(255,255,255,.05); font: inherit; }
+.create-room form .primary-action { justify-self: start; }
+.create-room [role="alert"] { color: #ff9dcc; }
+.create-room [role="status"] { overflow-wrap: anywhere; color: #baffd7; }
 
 @media (min-width: 900px) {
   :root { --nav-height: 72px; }
