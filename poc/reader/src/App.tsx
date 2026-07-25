@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   BookOpen,
@@ -50,6 +50,7 @@ export function App() {
   const [selectedReaction, setSelectedReaction] = useState(reactions[0].id);
   const [shout, setShout] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [ballotOpen, setBallotOpen] = useState(false);
   const [topThree, setTopThree] = useState<string[]>([works[0].id]);
   const selectedWork = works.find((work) => work.id === selectedWorkId) ?? works[0];
 
@@ -60,7 +61,7 @@ export function App() {
   function toggleTopThree() {
     setTopThree((current) => {
       if (current.includes(selectedWork.id)) return current.filter((id) => id !== selectedWork.id);
-      if (current.length >= 3) return [...current.slice(1), selectedWork.id];
+      if (current.length >= 3) return current;
       return [...current, selectedWork.id];
     });
   }
@@ -76,12 +77,13 @@ export function App() {
           onBack={() => setView("home")}
           onSelectWork={setSelectedWorkId}
           onOpenGroove={() => setDialogOpen(true)}
+          onReviewBallot={() => setBallotOpen(true)}
           onToggleTopThree={toggleTopThree}
         />
       )}
-      {view === "rankings" && <PlaceholderView icon={<Trophy />} title="Rankings" copy="Tonight's result appears after the Room is sealed." />}
-      {view === "shelf" && <PlaceholderView icon={<LibraryBig />} title="My Shelf" copy="Your Rooms, Top 3, and new oshi discoveries live here." />}
-      {view === "profile" && <PlaceholderView icon={<UserRound />} title="Profile" copy="Your pseudonymous Reader profile and badges." />}
+      {view === "rankings" && <RankingsView />}
+      {view === "shelf" && <ShelfView topThree={topThree} />}
+      {view === "profile" && <ProfileView />}
 
       <BottomNav view={view} onNavigate={setView} />
 
@@ -96,6 +98,7 @@ export function App() {
           onSubmit={() => setDialogOpen(false)}
         />
       )}
+      {ballotOpen && <BallotDialog topThree={topThree} onClose={() => setBallotOpen(false)} />}
     </div>
   );
 }
@@ -105,7 +108,7 @@ function HomeView({ onEnterRoom }: { onEnterRoom: () => void }) {
     <main className="page home-page">
       <header className="brand-bar">
         <div><span className="brand-mark">O</span><strong>Oshikatsu</strong></div>
-        <button className="account-pill" type="button"><span className="live-dot" /> Browse mode</button>
+        <a className="account-pill" href="https://ethglobal-lisbon2026-oshikatsu.web.app/?wallet-test=1"><span className="live-dot" /> Start My Oshikatsu</a>
       </header>
 
       <section className="home-hero" aria-labelledby="home-title">
@@ -115,7 +118,7 @@ function HomeView({ onEnterRoom }: { onEnterRoom: () => void }) {
           <p className="kicker">WEEKLY CHAPTER DROP · LIVE NOW</p>
           <h1 id="home-title">Read together.<br />Lose it together.</h1>
           <p className="hero-copy">Five new chapters. One shared night. Enter the Room and find the story everyone is shouting about.</p>
-          <button className="primary-action" type="button" onClick={onEnterRoom}>Join the Groove <Sparkles size={20} /></button>
+          <div className="hero-actions"><button className="primary-action" type="button" onClick={onEnterRoom}>Join the Groove <Sparkles size={20} /></button><button className="browse-action" type="button" onClick={onEnterRoom}>Browse First</button></div>
           <div className="live-stats">
             <span><UsersRound size={17} /> 28,431 in the Room</span>
             <span><Clock3 size={17} /> Voting closes in 01:42:18</span>
@@ -155,11 +158,13 @@ type RoomViewProps = {
   onBack: () => void;
   onSelectWork: (id: string) => void;
   onOpenGroove: () => void;
+  onReviewBallot: () => void;
   onToggleTopThree: () => void;
 };
 
-function RoomView({ work, selectedWorkId, topThree, onBack, onSelectWork, onOpenGroove, onToggleTopThree }: RoomViewProps) {
+function RoomView({ work, selectedWorkId, topThree, onBack, onSelectWork, onOpenGroove, onReviewBallot, onToggleTopThree }: RoomViewProps) {
   const inTopThree = topThree.includes(work.id);
+  const topThreeFull = topThree.length >= 3 && !inTopThree;
   return (
     <main className="page room-page">
       <header className="room-header">
@@ -189,11 +194,13 @@ function RoomView({ work, selectedWorkId, topThree, onBack, onSelectWork, onOpen
             <p className="kicker">NOW IN THE GROOVE</p>
             <h1 id="work-title">{work.title}</h1>
             <p>{work.chapter} · {work.readers} Readers finished</p>
+            <div className="room-facts"><span><UsersRound size={16} /> 28,431 in the Room</span><span><Clock3 size={16} /> Closes in 01:42:18</span></div>
             <a className="read-link" href="https://www.webtoons.com/" target="_blank" rel="noreferrer"><BookOpen size={18} /> Read Official Chapter</a>
           </div>
           <div className="work-actions">
             <button className="primary-action" type="button" onClick={onOpenGroove}>Osu! <MessageCircle size={20} /></button>
-            <button className={inTopThree ? "secondary-action active" : "secondary-action"} type="button" onClick={onToggleTopThree}>{inTopThree ? "Remove from My Top 3" : "Add to My Top 3"}</button>
+            <button className={inTopThree ? "secondary-action active" : "secondary-action"} type="button" onClick={onToggleTopThree} disabled={topThreeFull}>{inTopThree ? "Remove from My Top 3" : topThreeFull ? "Top 3 is full" : "Add to My Top 3"}</button>
+            <button className="ballot-action" type="button" onClick={onReviewBallot}>Review Top 3 · {topThree.length}/3</button>
           </div>
         </section>
 
@@ -225,10 +232,30 @@ type GrooveDialogProps = {
 
 function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShoutChange, onSubmit }: GrooveDialogProps) {
   const shoutBytes = new TextEncoder().encode(shout).length;
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+
+  function updateShout(value: string) {
+    onShoutChange([...value].slice(0, 200).join(""));
+  }
+
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section className="groove-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" onMouseDown={(event) => event.stopPropagation()}>
-        <header><div><p className="kicker">SEND TO THE GROOVE</p><h2 id="dialog-title">How did {work.title} hit you?</h2></div><button className="icon-button" type="button" onClick={onClose} aria-label="Close"><X /></button></header>
+        <header><div><p className="kicker">SEND TO THE GROOVE</p><h2 id="dialog-title">How did {work.title} hit you?</h2></div><button ref={closeButtonRef} className="icon-button" type="button" onClick={onClose} aria-label="Close"><X /></button></header>
         <div className="reaction-grid">
           {reactions.map((item) => (
             <button className={reaction === item.id ? "reaction-option selected" : "reaction-option"} type="button" key={item.id} onClick={() => onReactionChange(item.id)} aria-pressed={reaction === item.id}>
@@ -236,7 +263,7 @@ function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShou
             </button>
           ))}
         </div>
-        <label className="shout-field"><span>Shout</span><textarea value={shout} maxLength={200} onChange={(event) => onShoutChange(event.target.value)} placeholder="Drop your post-chapter scream..." /><small>{[...shout].length}/200 · {shoutBytes}/600 UTF-8 bytes</small></label>
+        <label className="shout-field"><span>Shout</span><textarea value={shout} onChange={(event) => updateShout(event.target.value)} placeholder="Drop your post-chapter scream..." /><small>{[...shout].length}/200 · {shoutBytes}/600 UTF-8 bytes</small></label>
         <button className="primary-action full" type="button" onClick={onSubmit} disabled={shoutBytes > 600}>Send to the Groove <Sparkles size={20} /></button>
         <p className="dialog-note">Reaction and Shout do not change your formal ballot.</p>
       </section>
@@ -244,8 +271,51 @@ function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShou
   );
 }
 
-function PlaceholderView({ icon, title, copy }: { icon: ReactNode; title: string; copy: string }) {
-  return <main className="page placeholder-page"><div className="placeholder-icon">{icon}</div><p className="kicker">OSHIKATSU READER</p><h1>{title}</h1><p>{copy}</p></main>;
+function BallotDialog({ topThree, onClose }: { topThree: string[]; onClose: () => void }) {
+  const rankedWorks = topThree.map((id) => works.find((work) => work.id === id)).filter((work): work is Work => Boolean(work));
+  return (
+    <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
+      <section className="ballot-dialog" role="dialog" aria-modal="true" aria-labelledby="ballot-title" onMouseDown={(event) => event.stopPropagation()}>
+        <header><div><p className="kicker">FORMAL BALLOT</p><h2 id="ballot-title">Review your Top 3</h2></div><button className="icon-button" type="button" onClick={onClose} aria-label="Close ballot review"><X /></button></header>
+        <ol className="ballot-ranking">{rankedWorks.map((work, index) => <li key={work.id}><span>{index + 1}</span><img src={work.cover} alt="" /><div><strong>{work.title}</strong><small>{work.chapter}</small></div></li>)}</ol>
+        {rankedWorks.length < 3 && <p className="ballot-warning">Choose {3 - rankedWorks.length} more work{rankedWorks.length === 2 ? "" : "s"} before casting your ballot.</p>}
+        <div className="trust-strip"><span>Orb-verified human</span><span>Unique in this Room</span><span>HashPack signed</span></div>
+        <a className={rankedWorks.length === 3 ? "primary-action full" : "primary-action full disabled"} href={rankedWorks.length === 3 ? "https://ethglobal-lisbon2026-oshikatsu.web.app/?wallet-test=1" : undefined}>Continue to verified ballot</a>
+        <p className="dialog-note">The verified integration opens separately so this Reader UI cannot alter the validated PoC.</p>
+      </section>
+    </div>
+  );
+}
+
+function RankingsView() {
+  return (
+    <main className="page collection-page">
+      <header className="collection-header"><p className="kicker">ROOM RESULT</p><h1>Rankings</h1><p>Results become formal only after the Room is sealed and public verification completes.</p></header>
+      <section className="pending-result"><Trophy /><div><p className="kicker gold">SEAL PENDING</p><h2>Weekly Chapter Drop</h2><p>Live standings are hidden until the immutable cutoff is confirmed.</p></div><span>01:42:18</span></section>
+      <section className="ranking-preview" aria-labelledby="ranking-preview-title"><div className="section-heading"><div><p className="kicker">PREVIEW</p><h2 id="ranking-preview-title">Groove, not final votes</h2></div></div>{works.slice(0,3).map((work,index)=><div className="ranking-row" key={work.id}><strong>{index+1}</strong><img src={work.cover} alt="" /><span><b>{work.title}</b><small>{work.readers} Readers finished</small></span><em>Pending</em></div>)}</section>
+    </main>
+  );
+}
+
+function ShelfView({ topThree }: { topThree: string[] }) {
+  const selected = topThree.map((id) => works.find((work) => work.id === id)).filter((work): work is Work => Boolean(work));
+  return (
+    <main className="page collection-page">
+      <header className="collection-header"><p className="kicker">MY OSHIKATSU</p><h1>My Shelf</h1><p>Your current Top 3 stays editable until the Room deadline.</p></header>
+      <section className="shelf-grid" aria-label="My Top 3">{[0,1,2].map((slot)=>{const work=selected[slot];return <article className="shelf-slot" key={slot}>{work?<><img src={work.cover} alt={`${work.title} cover`} /><span>#{slot+1}</span><strong>{work.title}</strong><small>{work.chapter}</small></>:<div className="empty-cover"><BookOpen /></div>}</article>})}</section>
+      <section className="history-strip"><p className="kicker">ROOM HISTORY</p><h2>Tonight is your first shared Room</h2><p>Verified ballot history will appear after capability is granted.</p></section>
+    </main>
+  );
+}
+
+function ProfileView() {
+  return (
+    <main className="page collection-page">
+      <header className="profile-hero"><div className="profile-avatar">R</div><div><p className="kicker">PSEUDONYMOUS READER</p><h1>Reader 9706</h1><p>Hedera testnet identity · public activity only</p></div></header>
+      <section className="badge-grid"><article><Medal /><strong>Rooms Joined</strong><span>1</span></article><article><Sparkles /><strong>Reactions</strong><span>1</span></article><article><LibraryBig /><strong>Works Shelved</strong><span>3</span></article></section>
+      <section className="create-room"><p className="kicker">HOST A SHARED MOMENT</p><h2>Create a Room</h2><p>Room creation UI is next. Manifest times and candidate sets will become immutable before voting opens.</p><button type="button" disabled>Create a Room · Not implemented</button></section>
+    </main>
+  );
 }
 
 function BottomNav({ view, onNavigate }: { view: View; onNavigate: (view: View) => void }) {
@@ -256,5 +326,5 @@ function BottomNav({ view, onNavigate }: { view: View; onNavigate: (view: View) 
     { id: "profile", label: "Profile", icon: <UserRound /> },
   ];
   const activeView = view === "room" ? "home" : view;
-  return <nav className="bottom-nav" aria-label="Primary navigation">{items.map((item) => <button type="button" key={item.id} className={activeView === item.id ? "active" : ""} onClick={() => onNavigate(item.id)}>{item.icon}<span>{item.label}</span></button>)}</nav>;
+  return <nav className="bottom-nav" aria-label="Primary navigation">{items.map((item) => <button type="button" key={item.id} className={activeView === item.id ? "active" : ""} aria-current={activeView === item.id ? "page" : undefined} onClick={() => onNavigate(item.id)}>{item.icon}<span>{item.label}</span></button>)}</nav>;
 }
