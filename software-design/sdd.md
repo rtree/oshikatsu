@@ -196,62 +196,55 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 ### 画面名：（全画面共通）
 
 この画面ですること：
-    全画面にいつも表示されている領域を語る
+    全画面にいつも表示されている領域の記述用
 
 - 領域名：グローバルナビゲーション
-- 領域の目的や機能：Roomのタイトル、現在のphase（開催時刻までのカウントダウンなど）を示す。複数並んでいて、現在Voteを受付中のRoomが一番上。次にこれから始まる開始前のRoomが並んでいる
-- 領域のデザインのテイスト：新刊発売日の高揚感。ファンミ会場のイメージ
-- 内部にある部品
-    - Room: 
-
-
+    - 領域の目的や機能： 画面下部にいつもいるアイコン＋画面名のボタン。画面間を移動するためのもの
+    - 領域のデザインのテイスト： ダークモード＋ネオンカラー
+    - 内部にある部品
+        - ホーム　　: ホーム画面を表示するボタン
+        - ランキング: ランキング画面を表示するボタン
+        - 本棚　　　: 本棚画面を表示するボタン
+        - マイページ: マイページ画面を表示するボタン
 
 ### 画面名：ホーム
 
 この画面ですること：
-    初回登録の開始画面。登録後は、次のRoomが開く時間と参加できる漫画の気配を伝え、読者を共有時間へ招く起点になる場所。
+    初回登録の開始画面。登録後は、次のRoomが開く時間と参加できる漫画の気配を伝え、読者を共有時間へ招く起点になる場所。新刊発売日の高揚感。ファンミ会場のイメージを伝える重要な画面
 
-領域名：Roomの入口
+- 領域名：推し活を始める
+    - 領域の目的や機能：初回登録前にWallet登録に進むためのボタンを表示する場所
+    - 領域のデザインのテイスト：
+    - 内部にある部品
+        - ▶︎推し活を始める: ボタン。これを押すとWallet登録画面に進む。Wallet登録後は自分の読んでいる作品を登録したのち、ホーム画面に戻ってくる
 
-- 領域の目的や機能：Roomのタイトル、現在のphase（開催時刻までのカウントダウンなど）を示す。複数並んでいて、現在Voteを受付中のRoomが一番上。次にこれから始まる開始前のRoomが並んでいる
-- 領域のデザインのテイスト：新刊発売日の高揚感。ファンミ会場のイメージ
-- 内部にある部品
-    - Room: 
-        - Roomタイトル：今週参加する共有時間を識別する。例：`Weekly Chapter Drop`
-        - Roomに入る：Roomへのprimary CTA。phaseに応じて`Join the Groove`、`Enter the Lobby`、`Replay the Room`を切り替える
-        - Groove Level：現在のReactionとShoutの勢いを示す
-        - Fans in the Lobby：Roomを閲覧中の規模を示すpresence count。World verification済み人数とは呼ばない
+- 領域名：Roomの入口
+    - 領域の目的や機能：初回登録以降に表示される。Roomのタイトル、現在のphase（開催時刻までのカウントダウンなど）を示す。複数並んでいて、現在Voteを受付中のRoomが一番上。次にこれから始まる開始前のRoomが並んでいる
+    - 領域のデザインのテイスト：新刊発売日の高揚感。ファンミ会場のイメージ
+    - 内部にある部品
+        - Room: 
+            - Roomタイトル：今週参加する共有時間を識別する。例：`Weekly Chapter Drop`
+            - Roomに入る：Roomへのprimary CTA。phaseに応じて`Join the Groove`、`Enter the Lobby`、`Replay the Room`を切り替える
+            - Groove Level：現在のReactionとShoutの勢いを示す
+            - Fans in the Lobby：Roomを閲覧中の規模を示すpresence count
+            - Vote deadline：`Voting Closes In`として投票期限を示す
 
-### 画面名：Special Room
+- 領域名：SpecialRoomの入口
+    - 領域の目的や機能：漫画文化へ貢献したReaderを候補として見て、人への推しをformal ballotとして表す。ソシャゲの期間限定イベントのようにホームに表示される。通常Roomとは別領域にこれが表示される
+    - 領域のデザインのテイスト：ソシャゲの期間限定イベントのバナー。特別なイベント感のある場所。年数回の祝祭。通常Roomより ceremonialな表現
+    - 内部にある部品
+        - Room: 
+            - Roomタイトル：参加する共有時間を識別する。例：`Manga Culture Contribution Award`として今回の特別Roomを識別する
+            - Roomに入る：Roomへのprimary CTA。phaseに応じてメッセージが切り替わる
+            - Groove Level：現在のReactionとShoutの勢いを示す。
+            - Fans in the Lobby：Roomを閲覧中の規模を示すpresence count
+            - Vote deadline：`Voting Closes In`として投票期限を示す
 
-この画面ですること：
-漫画文化へ貢献したReaderを候補として見て、人への推しをformal ballotとして表す。
-ソシャゲの期間限定イベントのようにホームに表示される。Roomとは別領域に
-
-領域名：Special Room hero
-
-- 領域の目的や機能：賞、開催期間、選考テーマを伝える
-- 領域のデザインのテイスト：年数回の祝祭。通常Roomより ceremonialな表現
-- 内部にある部品
-   - Prize title：`Manga Culture Contribution Award`として今回の特別Roomを識別する
-   - Evidence period：`Contribution Period`として候補実績の対象期間を示す
-   - Vote deadline：`Voting Closes In`として投票期限を示す
-
-領域名：Reader Nominee
-
-- 領域の目的や機能：候補者と公開実績を比較し、一人を選ぶ
-- 領域のデザインのテイスト：人物の物語と実績を同時に見せる
-- 内部にある部品
-   - Nominee profile：仮名、実績、推してきた作品を示す
-   - Public Contribution Signals：根拠eventへ辿れる候補理由を示す
-   - Voter selection：投票対象を一人選ぶ
-   - Formal action：`Vote for This Finalist`からWorld proofとWallet署名へ進む
-
-### 画面名：Roomロビー
+### 画面名：Room画面
 
 この画面ですること：
-ReaderがRoomの開始、deadline、候補集合を理解し、ライブRoomへ入る。
-
+    推し活のファンミ会場
+    
 領域名：Room countdown
 
 - 領域の目的や機能：phaseと残り時間を示す
@@ -423,6 +416,28 @@ deadlineまでの最後の意思を集計したrankingと、そのRoomのGrooveW
    - Timeline：Room開始からdeadlineまでの熱を示す
    - Turning points：反応とrankingが動いた瞬間を示す
    - 次の推し：Reader profileと実績を通じて新しい作品へ進む
+
+### 画面名：Special Room
+
+この画面ですること：
+
+
+領域名：Special Room hero
+
+- 領域の目的や機能：賞、開催期間、選考テーマを伝える
+- 領域のデザインのテイスト：
+- 内部にある部品
+
+領域名：Reader Nominee
+
+- 領域の目的や機能：候補者と公開実績を比較し、一人を選ぶ
+- 領域のデザインのテイスト：人物の物語と実績を同時に見せる
+- 内部にある部品
+   - Nominee profile：仮名、実績、推してきた作品を示す
+   - Public Contribution Signals：根拠eventへ辿れる候補理由を示す
+   - Voter selection：投票対象を一人選ぶ
+   - Formal action：`Vote for This Finalist`からWorld proofとWallet署名へ進む
+
 
 ### 画面名：Wallet接続・World Proof進行
 
