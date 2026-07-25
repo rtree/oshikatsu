@@ -8,6 +8,7 @@ import {
 
 type WorldIdRequest = {
   action: string;
+  action_description: string;
   app_id: `app_${string}`;
   context_token: string;
   rp_context: RpContext;
@@ -34,6 +35,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<IDKitResult | null>(null);
   const [artifact, setArtifact] = useState<VerificationArtifact | null>(null);
+  const [lastErrorCode, setLastErrorCode] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomId, setRoomId] = useState("");
 
@@ -52,6 +54,7 @@ export function App() {
     setError(null);
     setResult(null);
     setArtifact(null);
+    setLastErrorCode(null);
 
     try {
       const response = await fetch("/api/world-id/request", {
@@ -157,16 +160,20 @@ export function App() {
           }}
           app_id={request.app_id}
           action={request.action}
+          action_description={request.action_description}
           rp_context={request.rp_context}
           allow_legacy_proofs={false}
           environment="production"
-          require_user_presence
           preset={proofOfHuman({ signal: request.signal })}
           handleVerify={verifyProof}
           onSuccess={setResult}
-          onError={(errorCode) => setError(`World ID: ${errorCode}`)}
+          onError={(errorCode) => {
+            setLastErrorCode(errorCode);
+            setError(`World ID: ${errorCode}`);
+          }}
         />
       )}
+      {lastErrorCode && <p className="message error">Diagnostic: {lastErrorCode}</p>}
     </main>
   );
 }

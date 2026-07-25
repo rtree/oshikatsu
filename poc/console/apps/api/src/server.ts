@@ -4,7 +4,7 @@ import { hashSignal } from "@worldcoin/idkit-core/hashing";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { environment, getWorldIdEnvironment } from "./config.js";
-import { getRoomAction, roomIdSchema, rooms } from "./rooms.js";
+import { getRoom, getRoomAction, roomIdSchema, rooms } from "./rooms.js";
 
 const app = express();
 
@@ -12,6 +12,7 @@ const proofSchema = z.object({
   protocol_version: z.literal("4.0"),
   nonce: z.string().min(1),
   action: z.string().min(1),
+  action_description: z.string().min(1).optional(),
   responses: z
     .array(
       z.object({
@@ -24,7 +25,7 @@ const proofSchema = z.object({
       }),
     )
     .min(1),
-  user_presence_completed: z.literal(true),
+  user_presence_completed: z.boolean(),
   environment: z.literal("production"),
 });
 
@@ -42,6 +43,7 @@ const proofContextSchema = z.object({
   action: z.string().min(1),
   expires_at: z.number().int(),
   nonce: z.string().min(1),
+  presence_required: z.boolean(),
   room_id: roomIdSchema,
   signal: z.string().min(1).max(512),
 });
@@ -101,6 +103,7 @@ app.post("/api/world-id/request", (request, response) => {
   try {
     const worldId = getWorldIdEnvironment();
     const roomId = parsed.data.room_id;
+    const room = getRoom(roomId);
     const action = getRoomAction(roomId);
     const signature = signRequest({
       action,
@@ -111,12 +114,14 @@ app.post("/api/world-id/request", (request, response) => {
 
     response.json({
       action,
+      action_description: room.actionDescription,
       app_id: worldId.appId,
       context_token: signProofContext(
         {
           action,
           expires_at: signature.expiresAt,
           nonce: signature.nonce,
+          presence_required: false,
           room_id: roomId,
           signal,
         },
@@ -161,6 +166,7 @@ app.post("/api/world-id/verify", async (request, response) => {
       context.nonce !== proof.nonce ||
       context.signal !== signal ||
       proof.action !== expectedAction ||
+      (context.presence_required && !proof.user_presence_completed) ||
       !signalMatches
     ) {
       response.status(400).json({ success: false, code: "proof_context_mismatch" });

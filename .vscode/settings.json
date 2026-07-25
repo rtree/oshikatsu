@@ -156,6 +156,134 @@
         "/^npx --yes firebase-tools@15\\.24\\.0 deploy --only hosting --config /Users/araki/operations/oshikatsu/poc/console/firebase\\.json --project ethglobal-lisbon2026-oshikatsu --non-interactive$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.service_name=\"oshikatsu-api\" AND resource\\.labels\\.revision_name=\"oshikatsu-api-00002-rbl\" AND severity>=ERROR' --project ethglobal-lisbon2026-oshikatsu --limit=10 --freshness=15m --format='value\\(textPayload\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.service_name=\"oshikatsu-api\" AND httpRequest\\.requestUrl:\"/api/world-id/verify\"' --project ethglobal-lisbon2026-oshikatsu --limit=5 --freshness=15m --format='table\\(timestamp,httpRequest\\.requestMethod,httpRequest\\.status,httpRequest\\.latency,resource\\.labels\\.revision_name\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.service_name=\"oshikatsu-api\" AND severity>=ERROR' --project ethglobal-lisbon2026-oshikatsu --limit=10 --freshness=15m --format='value\\(timestamp,textPayload\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh issue list --repo araki-operations/oshikatsu --state open --limit 20 2>/dev/null \\|\\| gh issue list --state open --limit 20$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh issue comment 1 --repo rtree/oshikatsu --body \\$'Gate 0-A production evidence \\(2026-07-25\\)\\\\n\\\\n- Hosting: https://ethglobal-lisbon2026-oshikatsu\\.web\\.app\\\\n- Cloud Run revision: `oshikatsu-api-00002-rbl`\\\\n- Room: `lisbon-main`\\\\n- Derived action: `oshikatsu-room:lisbon-main`\\\\n- World protocol: `4\\.0`\\\\n- Credential: `proof_of_human` \\(Selfie flow completed in World App\\)\\\\n- Legacy proofs: disabled\\\\n- User presence: required and completed\\\\n- Server-issued custom signal: matched by official `hashSignal` verification\\\\n- Developer Portal verification: `POST /api/world-id/verify` returned HTTP 200\\\\n- Verification latency: 1\\.116 s\\\\n- Cloud Run errors during run: 0\\\\n- Browser success artifact: `Room=lisbon-main`, `Protocol=4\\.0`, `Credential=proof_of_human`, `Signal=Matched`\\\\n\\\\nDecision: \\*\\*GO\\*\\*\\. Production World v4 proof is bound to a server-issued signal and a server-derived Room action\\. No proof, nullifier, RP signature, or secret value is included in this evidence\\.' && gh issue close 1 --repo rtree/oshikatsu --reason completed --comment 'Acceptance evidence recorded above; closing Gate 0-A as completed\\.'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.service_name=\"oshikatsu-api\" AND severity>=WARNING' --project ethglobal-lisbon2026-oshikatsu --limit=20 --freshness=30m --format='table\\(timestamp,severity,httpRequest\\.requestUrl,httpRequest\\.status,textPayload\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh issue view 2 --repo rtree/oshikatsu --json title,body,state,labels,url$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.service_name=\"oshikatsu-api\" AND httpRequest\\.requestUrl:\"/api/world-id/request\"' --project ethglobal-lisbon2026-oshikatsu --limit=10 --freshness=30m --format='table\\(timestamp,httpRequest\\.status,httpRequest\\.latency\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh issue comment 2 --repo rtree/oshikatsu --body \\$'Gate 0-B observation: same-Room repeat \\(2026-07-25\\)\\\\n\\\\nContext:\\\\n- Human/RP/action: same human, same RP, same derived action `oshikatsu-room:lisbon-main`\\\\n- RP context: fresh nonce, 300 s TTL\\\\n- Signal: fresh server-issued Room-bound signal \\(changed from successful Gate 0-A run\\)\\\\n- First run: protocol 4\\.0 `proof_of_human` verified successfully\\\\n\\\\nRepeat behavior:\\\\n- User scanned QR and confirmed in World App\\\\n- World App did not request another Selfie and closed its dialog\\\\n- Browser bridge state: `status=retrieved`, `response=null`\\\\n- Browser remained in `Connecting\\.\\.\\.` because World App returned neither proof nor explicit error\\\\n- Cloud Run `/api/world-id/verify`: no second request received\\\\n- Cloud Run errors: 0\\\\n\\\\nInterpretation: fresh RP context and changed signal did not produce a second usable proof for the same human/RP/Room action\\. This supports Room uniqueness, with a UX constraint: duplicate action refusal is currently silent at the World App bridge boundary\\. Different-Room action proof remains to be tested before final Gate 0-B decision\\.'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.service_name=\"oshikatsu-api\" AND httpRequest\\.requestUrl:\"/api/world-id/verify\"' --project ethglobal-lisbon2026-oshikatsu --limit=10 --freshness=30m --format='table\\(timestamp,httpRequest\\.status,httpRequest\\.latency,resource\\.labels\\.revision_name\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.service_name=\"oshikatsu-api\" AND httpRequest\\.requestUrl:\"/api/world-id/request\"' --project ethglobal-lisbon2026-oshikatsu --limit=5 --freshness=15m --format='table\\(timestamp,httpRequest\\.status,httpRequest\\.latency\\)' && date -u '\\+now=%Y-%m-%dT%H:%M:%SZ'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.service_name=\"oshikatsu-api\" AND severity>=WARNING' --project ethglobal-lisbon2026-oshikatsu --limit=10 --freshness=15m --format='table\\(timestamp,severity,httpRequest\\.requestUrl,httpRequest\\.status,textPayload\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm --prefix /Users/araki/operations/oshikatsu/poc/console run build && gcloud builds submit /Users/araki/operations/oshikatsu/poc/console --project ethglobal-lisbon2026-oshikatsu --config /Users/araki/operations/oshikatsu/poc/console/cloudbuild\\.api\\.yaml --format='value\\(id\\)' --quiet$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud run deploy oshikatsu-api --image asia-northeast1-docker\\.pkg\\.dev/ethglobal-lisbon2026-oshikatsu/oshikatsu/oshikatsu-api:b9e1bf83-8da8-442a-851b-c58f58875748 --region asia-northeast1 --project ethglobal-lisbon2026-oshikatsu --service-account oshikatsu-api@ethglobal-lisbon2026-oshikatsu\\.iam\\.gserviceaccount\\.com --allow-unauthenticated --port 8080 --cpu 1 --memory 512Mi --min 0 --max 3 --quiet --format='value\\(status\\.latestReadyRevisionName\\)' && npx --yes firebase-tools@15\\.24\\.0 deploy --only hosting --config /Users/araki/operations/oshikatsu/poc/console/firebase\\.json --project ethglobal-lisbon2026-oshikatsu --non-interactive$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.revision_name=\"oshikatsu-api-00003-czj\" AND severity>=ERROR' --project ethglobal-lisbon2026-oshikatsu --limit=10 --freshness=10m --format='value\\(textPayload\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.revision_name=\"oshikatsu-api-00003-czj\"' --project ethglobal-lisbon2026-oshikatsu --limit=10 --freshness=10m --format='table\\(timestamp,httpRequest\\.requestMethod,httpRequest\\.requestUrl,httpRequest\\.status,httpRequest\\.latency\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node --input-type=module -e \"import \\{ signRequest, computeRpSignatureMessage \\} from '@worldcoin/idkit-server'; console\\.log\\(\\{signRequestType: typeof signRequest, computeExported: typeof computeRpSignatureMessage\\}\\);\" && rg -n -uuu --glob '!\\*\\*/\\*\\.map' 'function signRequest\\|var signRequest\\|computeRpSignatureMessage' node_modules/@worldcoin/idkit-server/dist/index\\.js node_modules/@worldcoin/idkit-server/dist/index\\.d\\.ts$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm ls @worldcoin/idkit @worldcoin/idkit-core @worldcoin/idkit-server --all && node -p \"JSON\\.stringify\\(\\{idkit:require\\('\\./node_modules/@worldcoin/idkit/package\\.json'\\)\\.version,core:require\\('\\./node_modules/@worldcoin/idkit-core/package\\.json'\\)\\.version,server:require\\('\\./node_modules/@worldcoin/idkit-server/package\\.json'\\)\\.version\\},null,2\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node --input-type=module - <<'NODE'\nimport \\{ proofOfHuman \\} from '@worldcoin/idkit-core';\nconsole\\.log\\(JSON\\.stringify\\(proofOfHuman\\(\\{ signal: 'oshikatsu:lisbon-main:test' \\}\\), null, 2\\)\\);\nNODE$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node --input-type=module - <<'NODE'\nimport \\{ signRequest \\} from '@worldcoin/idkit-server';\nconst key = '11'\\.repeat\\(32\\);\nfor \\(const action of \\['oshikatsu-room:lisbon-main', 'oshikatsu-room:lisbon-encore'\\]\\) \\{\n  const signed = signRequest\\(\\{ action, signingKeyHex: key, ttl: 300 \\}\\);\n  console\\.log\\(action, signed\\.nonce, signed\\.expiresAt - signed\\.createdAt\\);\n\\}\nNODE$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm view @worldcoin/idkit repository\\.url version && npm view @worldcoin/idkit-core repository\\.url version && gh auth status --hostname github\\.com 2>&1 \\| sed -n '1,12p'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh label list --repo rtree/oshikatsu --limit 100$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh issue list --repo rtree/oshikatsu --state all --search 'Selfie OR silent OR bridge' --limit 20$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^issue_url=\\$\\(gh issue create --repo rtree/oshikatsu --title 'Selfie Beta: World App silently closes without bridge response after first proof' --label bug --label world-id --label evidence --label blocked --body \\$'## Summary\\\\n\\\\nWith production World ID and the Selfie Beta enrollment path, the first Room-bound proof succeeds, but later requests are retrieved by World App and then silently dismissed without publishing either a proof or a terminal error to Wallet Bridge\\. This occurs for both the same action and a different Room action\\.\\\\n\\\\nThis Issue is intentionally filed in our repository first\\. Do not forward upstream until sanitized diagnostics and the Orb/presence controls below are complete\\.\\\\n\\\\n## Environment\\\\n\\\\n- `@worldcoin/idkit`: `4\\.2\\.1`\\\\n- `@worldcoin/idkit-core`: `4\\.2\\.2`\\\\n- `@worldcoin/idkit-server`: `1\\.1\\.1`\\\\n- Environment: production\\\\n- Transport: desktop QR / Wallet Bridge\\\\n- Credential request: `proofOfHuman\\(\\{ signal \\}\\)`\\\\n- `allow_legacy_proofs`: false at React call site\\\\n- Selfie Check status: Beta; selected-partner access\\\\n- RP signatures: server-side, fresh nonce, 300 s TTL\\\\n- Actions: server-derived from registered Room IDs\\\\n\\\\n## Successful baseline\\\\n\\\\n- Room/action: `lisbon-main` / `oshikatsu-room:lisbon-main`\\\\n- World App requested a Selfie\\\\n- Result: protocol `4\\.0`, identifier `proof_of_human`, schema ID `1`\\\\n- Server-issued signal hash matched\\\\n- Developer Portal verification returned HTTP 200\\\\n- `user_presence_completed`: required and accepted\\\\n\\\\nNo proof, nullifier, signature, nonce, connector encryption key, biometric data, or secret is attached\\.\\\\n\\\\n## Reproduction\\\\n\\\\n1\\. Complete the successful baseline above\\.\\\\n2\\. Generate a fresh RP context and fresh server-issued signal\\.\\\\n3\\. Scan and approve either:\\\\n   - the same action, or\\\\n   - a different action `oshikatsu-room:lisbon-encore` with `action_description`\\.\\\\n4\\. Observe World App\\.\\\\n\\\\n## Actual behavior\\\\n\\\\n- World App retrieves the request and dismisses its native dialog after approval\\.\\\\n- No second Selfie/Face Auth UI is shown\\.\\\\n- Wallet Bridge remains `status=retrieved`, `response=null`\\.\\\\n- IDKit remains on `Connecting\\.\\.\\. Please continue in app` until timeout\\.\\\\n- React `onError` is not called because the bridge never reaches a terminal state\\.\\\\n- Host `handleVerify` is not called\\.\\\\n- Cloud Run `/api/world-id/verify` receives no request\\.\\\\n- Cloud Run errors: 0\\.\\\\n\\\\n## Expected behavior\\\\n\\\\nWorld App must publish one terminal outcome to Wallet Bridge:\\\\n\\\\n- a proof for a fresh different action, or\\\\n- an encrypted canonical error such as `max_verifications_reached`, `nullifier_replayed`, `credential_unavailable`, or `user_presence_failed`\\.\\\\n\\\\nSilent dismissal with a nonterminal bridge state is not actionable for the RP\\.\\\\n\\\\n## Why Selfie Beta matters\\\\n\\\\nOfficial docs describe Selfie Check as Beta, low-assurance, 90-day validity, and only some Sybil resistance\\. A returning user should run quick Face Auth for continuity\\. The observed first flow visually used Selfie while returning a v4 `proof_of_human` result\\. We have not established whether this is expected partner-cohort behavior, a beta account-level issuance policy, or a World App error-propagation defect\\.\\\\n\\\\n## Current interpretation\\\\n\\\\n- Room-scoped actions are semantically correct under v4; different actions should derive unlinkable nullifiers\\.\\\\n- Same-action refusal is expected, but should be terminal and explicit\\.\\\\n- Different-action silent refusal leaves Gate 0-B \\*\\*BLOCKED\\*\\*\\.\\\\n- Selfie Beta is not yet acceptable as high-assurance one-human-per-Room evidence\\.\\\\n\\\\n## Discriminating experiments\\\\n\\\\n- \\[ \\] Persist sanitized `onError\\(errorCode, debugReport\\)` without unmount loss\\\\n- \\[ \\] Compare `require_user_presence=true` vs `false` with fresh actions\\\\n- \\[ \\] Run an Orb-backed Proof of Human control with the same RP and a fresh Room action\\\\n- \\[ \\] Compare QR bridge against native Mini App transport if available\\\\n- \\[ \\] Record World App version/platform and request ID fingerprint\\\\n- \\[ \\] Confirm effective wire-level `allow_legacy_proofs` for `proofOfHuman`\\\\n- \\[ \\] Decide whether to file a sanitized upstream `worldcoin/idkit` Issue\\\\n\\\\n## Security and privacy\\\\n\\\\nDo not attach raw proofs, complete nullifiers, RP signatures, nonces, connector URLs/keys, signing keys, face images, biometric data, or account/device identifiers\\.' --milestone 'M0: Feasibility gates'\\)\nprintf '%s\\\\n' \"\\$issue_url\"\ngh issue comment 2 --repo rtree/oshikatsu --body \"Blocked by the Selfie Beta silent bridge response investigation: \\$issue_url\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm --prefix /Users/araki/operations/oshikatsu/poc/console run build && npm --prefix /Users/araki/operations/oshikatsu/poc/console run security:check && gcloud builds submit /Users/araki/operations/oshikatsu/poc/console --project ethglobal-lisbon2026-oshikatsu --config /Users/araki/operations/oshikatsu/poc/console/cloudbuild\\.api\\.yaml --format='value\\(id\\)' --quiet$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud run deploy oshikatsu-api --image asia-northeast1-docker\\.pkg\\.dev/ethglobal-lisbon2026-oshikatsu/oshikatsu/oshikatsu-api:5f8bfc27-ce53-4584-bb03-6ed0e63b29cf --region asia-northeast1 --project ethglobal-lisbon2026-oshikatsu --service-account oshikatsu-api@ethglobal-lisbon2026-oshikatsu\\.iam\\.gserviceaccount\\.com --allow-unauthenticated --port 8080 --cpu 1 --memory 512Mi --min 0 --max 3 --quiet --format='value\\(status\\.latestReadyRevisionName\\)' && npx --yes firebase-tools@15\\.24\\.0 deploy --only hosting --config /Users/araki/operations/oshikatsu/poc/console/firebase\\.json --project ethglobal-lisbon2026-oshikatsu --non-interactive$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.service_name=\"oshikatsu-api\" AND httpRequest\\.requestUrl:\"/api/world-id/verify\"' --project ethglobal-lisbon2026-oshikatsu --limit=10 --freshness=15m --format='table\\(timestamp,httpRequest\\.status,httpRequest\\.latency,resource\\.labels\\.revision_name\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.revision_name=\"oshikatsu-api-00004-gzz\" AND severity>=WARNING' --project ethglobal-lisbon2026-oshikatsu --limit=20 --freshness=15m --format='table\\(timestamp,severity,httpRequest\\.requestUrl,httpRequest\\.status,textPayload\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh issue view 6 --repo rtree/oshikatsu --json url,state,title$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm --prefix /Users/araki/operations/oshikatsu/poc/console run check$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh issue comment 6 --repo rtree/oshikatsu --body \\$'## Discriminating result: additional presence disabled\\\\n\\\\nThe fresh `lisbon-presence-control` action was requested with `require_user_presence` removed\\.\\\\n\\\\nObserved:\\\\n- World App completed successfully and displayed: `Congratulations! You have successfully shared your proofs anonymously`\\\\n- Wallet Bridge returned a proof; the previous `retrieved / response=null` stall did not occur\\\\n- Host callback ran\\\\n- Cloud Run `/api/world-id/verify` returned HTTP 400 in 6\\.5 ms\\\\n- IDKit surfaced `failed_by_host_app` / `Verification declined`\\\\n\\\\nRoot cause of the host rejection:\\\\n- API schema required `user_presence_completed: true` unconditionally\\\\n- The control request did not ask for additional presence, so the valid response carried `false`\\\\n- Zod rejected it before forwarding to Developer Portal\\\\n\\\\nFix:\\\\n- Parse `user_presence_completed` as boolean\\\\n- Bind `presence_required` into the server-signed proof context\\\\n- Require completion only when that signed context says presence was requested\\\\n\\\\nInterpretation:\\\\n- The silent bridge failure is strongly associated with combining the Selfie Beta path and an additional `require_user_presence` request\\\\n- Selfie Beta without additional presence can generate and return a proof\\\\n- A fresh host-verification control action is required to validate the corrected backend policy\\\\n\\\\nNo proof, nullifier, biometric data, signature, nonce, or secret is included\\.'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud run deploy oshikatsu-api --image asia-northeast1-docker\\.pkg\\.dev/ethglobal-lisbon2026-oshikatsu/oshikatsu/oshikatsu-api:40883289-8137-4014-b94e-1b7d216f55ef --region asia-northeast1 --project ethglobal-lisbon2026-oshikatsu --service-account oshikatsu-api@ethglobal-lisbon2026-oshikatsu\\.iam\\.gserviceaccount\\.com --allow-unauthenticated --port 8080 --cpu 1 --memory 512Mi --min 0 --max 3 --quiet --format='value\\(status\\.latestReadyRevisionName\\)' && npx --yes firebase-tools@15\\.24\\.0 deploy --only hosting --config /Users/araki/operations/oshikatsu/poc/console/firebase\\.json --project ethglobal-lisbon2026-oshikatsu --non-interactive$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
