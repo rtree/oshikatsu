@@ -4,6 +4,7 @@ import { hashSignal } from "@worldcoin/idkit-core/hashing";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { environment, getWorldIdEnvironment } from "./config.js";
+import { getGrooveStatus, groovePrepareSchema, prepareGroove } from "./groove.js";
 import { createRoom, createRoomSchema, getRoom, getRoomAction, listRooms, roomIdSchema } from "./rooms.js";
 
 const app = express();
@@ -120,6 +121,32 @@ app.get("/api/rooms/:roomId", async (request, response) => {
     response.json({ room });
   } catch {
     response.status(400).json({ error: "Invalid Room id." });
+  }
+});
+
+app.post("/api/groove/prepare", async (request, response) => {
+  const parsed = groovePrepareSchema.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: "Invalid Groove input.", issues: parsed.error.issues });
+    return;
+  }
+  try {
+    response.status(201).json({ preparation: await prepareGroove(parsed.data) });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : "Groove preparation failed." });
+  }
+});
+
+app.get("/api/groove/status/:transactionId", async (request, response) => {
+  const prepareId = typeof request.query.prepare_id === "string" ? request.query.prepare_id : "";
+  if (!/^groove-[0-9a-f]{32}$/.test(prepareId)) {
+    response.status(400).json({ error: "A valid prepare_id is required." });
+    return;
+  }
+  try {
+    response.json(await getGrooveStatus(prepareId, request.params.transactionId));
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : "Groove status failed." });
   }
 });
 
