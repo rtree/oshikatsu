@@ -14,3 +14,5 @@ npm run dev
 Development runs on http://localhost:5180 and proxies `/api` to the existing Cloud Run-compatible API on port 8080.
 
 The verified integration PoC remains at `../console/apps/web` and its production Hosting target must not be overwritten by this project.
+
+The formal Reader deploys through its own `firebase.json` to the separate Hosting site `oshikatsu-reader-lisbon26`.

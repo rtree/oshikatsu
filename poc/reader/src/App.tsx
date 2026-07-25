@@ -25,23 +25,23 @@ type Work = {
 };
 
 const works: Work[] = [
-  { id: "level-up", title: "Solo Leveling", chapter: "Chapter 143", cover: "/assets/sample01.png", readers: "8,241" },
-  { id: "cadet", title: "Teenage Mercenary", chapter: "Chapter 85", cover: "/assets/sample02.png", readers: "6,903" },
-  { id: "divine", title: "Divine Delivery", chapter: "Chapter 61", cover: "/assets/sample03.png", readers: "5,778" },
-  { id: "reader", title: "Omniscient Reader", chapter: "Chapter 207", cover: "/assets/sample04.png", readers: "9,412" },
-  { id: "returner", title: "Returner's Magic", chapter: "Chapter 119", cover: "/assets/sample05.png", readers: "4,806" },
+  { id: "level-up", title: "Solo Leveling", chapter: "Chapter 143", cover: "/assets/sample01.webp", readers: "8,241" },
+  { id: "cadet", title: "Teenage Mercenary", chapter: "Chapter 85", cover: "/assets/sample02.webp", readers: "6,903" },
+  { id: "divine", title: "Divine Delivery", chapter: "Chapter 61", cover: "/assets/sample03.webp", readers: "5,778" },
+  { id: "reader", title: "Omniscient Reader", chapter: "Chapter 207", cover: "/assets/sample04.webp", readers: "9,412" },
+  { id: "returner", title: "Returner's Magic", chapter: "Chapter 119", cover: "/assets/sample05.webp", readers: "4,806" },
 ];
 
 const reactions = [
-  { id: "peak", icon: "/assets/ico08.png", label: "Peak Chapter", count: "8,321" },
-  { id: "cried", icon: "/assets/ico12.png", label: "Cried My Eyes Out", count: "2,482" },
-  { id: "precious", icon: "/assets/ico13.png", label: "Too Precious", count: "7,221" },
-  { id: "next", icon: "/assets/ico14.png", label: "Next Chapter Now", count: "11,832" },
-  { id: "week", icon: "/assets/ico15.png", label: "Chapter of the Week", count: "4,281" },
-  { id: "dead", icon: "/assets/ico16.png", label: "I'm Dead", count: "3,912" },
-  { id: "melted", icon: "/assets/ico18.png", label: "I Melted", count: "2,706" },
-  { id: "wrecked", icon: "/assets/ico19.png", label: "Emotionally Wrecked", count: "6,118" },
-  { id: "losing", icon: "/assets/ico20.png", label: "I'm Losing It", count: "5,430" },
+  { id: "peak", icon: "/assets/ico08.webp", label: "Peak Chapter", count: "8,321" },
+  { id: "cried", icon: "/assets/ico12.webp", label: "Cried My Eyes Out", count: "2,482" },
+  { id: "precious", icon: "/assets/ico13.webp", label: "Too Precious", count: "7,221" },
+  { id: "next", icon: "/assets/ico14.webp", label: "Next Chapter Now", count: "11,832" },
+  { id: "week", icon: "/assets/ico15.webp", label: "Chapter of the Week", count: "4,281" },
+  { id: "dead", icon: "/assets/ico16.webp", label: "I'm Dead", count: "3,912" },
+  { id: "melted", icon: "/assets/ico18.webp", label: "I Melted", count: "2,706" },
+  { id: "wrecked", icon: "/assets/ico19.webp", label: "Emotionally Wrecked", count: "6,118" },
+  { id: "losing", icon: "/assets/ico20.webp", label: "I'm Losing It", count: "5,430" },
 ];
 
 export function App() {
@@ -112,7 +112,7 @@ function HomeView({ onEnterRoom }: { onEnterRoom: () => void }) {
       </header>
 
       <section className="home-hero" aria-labelledby="home-title">
-        <img src="/assets/room-stage.png" alt="Readers gathering in a luminous manga event venue" />
+        <img src="/assets/room-stage.webp" alt="Readers gathering in a luminous manga event venue" />
         <div className="home-hero-shade" />
         <div className="home-hero-content">
           <p className="kicker">WEEKLY CHAPTER DROP · LIVE NOW</p>
@@ -188,7 +188,7 @@ function RoomView({ work, selectedWorkId, topThree, onBack, onSelectWork, onOpen
         </aside>
 
         <section className="work-stage" aria-labelledby="work-title">
-          <img className="work-art" src={work.id === "level-up" ? "/assets/level-up.png" : work.cover} alt={`${work.title} featured artwork`} />
+          <img className="work-art" src={work.id === "level-up" ? "/assets/level-up.webp" : work.cover} alt={`${work.title} featured artwork`} />
           <div className="work-vignette" />
           <div className="work-copy">
             <p className="kicker">NOW IN THE GROOVE</p>
