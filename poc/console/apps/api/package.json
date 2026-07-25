@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.13.0",
+    "@hiero-ledger/sdk": "^2.86.2",
     "@worldcoin/idkit-core": "^4.2.2",
     "@worldcoin/idkit-server": "^1.1.1",
     "dotenv": "^17.2.3",
