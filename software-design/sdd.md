@@ -238,7 +238,7 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 この画面ですること：
     推し活のライブ会場
 
-- 領域名：Room内部
+- 領域名：通常Room内部
     - 領域名： 投票開始前画面
         - 領域の目的や機能：Roomのタイトル（本日の推し活）、開幕までを表示する。Roomが開くのを待つ画面。「本日の推し活、開幕まで」「みんな、準備はいいか?」との表示があり高揚させる。ライブイベントの開演時計。時間を第一視線に置く
         - 領域のデザインのテイスト：新刊発売日の高揚感。ライブ会場のイメージ
@@ -248,6 +248,16 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
             - Groove Level：現在のReactionとShoutの勢いを示す
             - Fans in the Lobby：Roomを閲覧中の規模を示すpresence count
             - Vote deadline：`Voting Closes In`として投票期限を示す
+            - 作品一覧
+                - 領域名：作品一覧を表維持
+                - 領域名：一作品を推薦
+                    - 領域の目的や機能：Readerが推したい作品の情報を入力し、Nominee eventを作る
+                    - 領域のデザインのテイスト：投稿フォームより推薦カードの作成体験を優先する
+                    - 内部にある部品
+                        - 漫画情報：title、chapter、cover、reading locationを入力する
+                        - Nominee preview：Room内での見え方を確認する
+                        - Nominate action：`Review Nomination`からWallet署名へ渡すNominee intentを作る
+                        - Window notice：`Nominations lock when the Room opens.`
     - 領域名： 投票中画面
         - 領域名：VotingLineup
             - 領域の目的や機能：manifestに固定された作品を一覧する
@@ -260,178 +270,53 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
             - 領域の目的や機能：選んだ作品のGroove（他の人のスタンプや叫びの勢い）を表示する
             - 領域のデザインのテイスト：みんなが作品の周りに集まっている画面。作品が中心にあり、周りにみんなのスタンプが囲っている
             - 内部にある部品
-                - 作品の画像とそれを取り囲むみんなのスタンプ（どんどん増えていく。スタンプが押されるたびに）
+                - 領域名：作品hero
+                    - 領域の目的や機能：作品、chapter、reading locationを提示する
+                    - 領域のデザインのテイスト：表紙をfull-bleedで扱い、作品世界へ入る
+                    - 内部にある部品
+                        - Cover：作品を視覚的に識別する
+                        - Chapter情報：今回の話を識別する
+                        - Read action：`Read Official Chapter`で公式reading locationへ進む
                 - スタンプごとの投稿数
                     スタンプ名　X人
                 - スタンプを押した人数
                 - 叫び一覧
-    - 領域名：投票後画面VotingDialogue
-        - 領域の目的や機能：実際に感情のスタンプを選んで叫びを記入するダイアログ
-        - 領域のデザインのテイスト：この会の感情をスタンプで表そう
+                - 推す　ボタン
+                    - VotingDialogueを表示するボタン
+                    - 領域名：VotingDialogue
+                        - 領域の目的や機能：スタンプと叫びを選び、Groove eventを作る
+                        - 領域のデザインのテイスト：感情の強さを保つ大きなスタンプと短い入力欄
+                        - 内部にある部品
+                            - Reaction palette：canonical Reaction vocabularyから感情を選ぶ
+                            - Shout input：`Drop your post-chapter scream...`へ短い感想を入力する
+                            - Groove action：`Send to the Groove`でwork、Reaction、Shout、accountを束ねたintentを作る
+    - 領域名：投票後画面VotingRanking
+        - 領域の目的や機能：deadlineまでの最後の意思を集計したrankingと、そのRoomのGrooveWaveを見返す。
+        - 領域のデザインのテイスト：画面下部に安定して見える強いaction bar
         - 内部にある部品
-            - スタンプ
-            - 叫び
-            - 投稿する　ボタン
+            - 領域名：今週のranking
+                - 領域の目的や機能：順位、point、有効capability数を示す
+                - 領域のデザインのテイスト：雑誌の巻頭ランキング。winnerの表紙を大きく扱う
+                - 内部にある部品
+                    - Winner feature：`Tonight's Winner`として一位作品を示す
+                    - Final Ranking：全作品の順位とpointを示す
+                    - Verification summary：`Verified Ballots`、cutoff、accepted ballot数を要約する
+                    - Verify Results：manifest hash、result hash、public replayへ進む
 
 
-### 画面名：Nominee受付
-
-この画面ですること：
-ReaderがNomination Window中に一作品を候補として提案し、候補集合の成長を共有する。
-
-- 領域名：候補一覧
-    - 領域の目的や機能：現在集まっているNomineeと提案者の仮名accountを示す
-    - 領域のデザインのテイスト：推薦棚。表紙を中心に、推薦の連鎖を感じる構成
-    - 内部にある部品
-        - Nominee item：漫画名、話数、表紙、reading locationを示す
-        - Nominated by：表示名または短縮Hedera accountを示す
-        - Added at：候補がHCS consensusへ到達した時刻を示す
-
-- 領域名：一作品を推薦
-    - 領域の目的や機能：Readerが推したい作品の情報を入力し、Nominee eventを作る
-    - 領域のデザインのテイスト：投稿フォームより推薦カードの作成体験を優先する
-    - 内部にある部品
-        - 漫画情報：title、chapter、cover、reading locationを入力する
-        - Nominee preview：Room内での見え方を確認する
-        - Nominate action：`Review Nomination`からWallet署名へ渡すNominee intentを作る
-        - Window notice：`Nominations lock when the Room opens.`
-
-### 画面名：ライブRoom
-
-この画面ですること：
-複数作品のGrooveを同時に眺め、読みたい作品と推したい作品を選ぶ。
-
-- 領域名：Room pulse
-    - 領域の目的や機能：Room全体の参加人数、残り時間、Grooveの勢いを示す
-    - 領域のデザインのテイスト：ライブ実況。動きと密度を持たせる
-    - 内部にある部品
-        - Fans Here：active presenceを示す
-        - Verified Voters：成立済みRoom capability数を示す
-        - Ballots Close In：logical event completionの残り時間を示す
-        - Live Groove：直近のReactionとShoutを示す
-
-- 領域名：作品一覧
-    - 領域の目的や機能：各作品の最新Grooveと主要emotionを比較する
-    - 領域のデザインのテイスト：縦に読み進める漫画目次。表紙、作品名、波形を一体化する
-    - 内部にある部品
-        - 作品card：表紙、title、chapterを示す
-        - Mini GrooveWave：反応量と時間変化を示す
-        - Top Reaction：代表的なReaction labelとcountを示す
-        - Chapter action：`Open Groove`で作品詳細へ進む
-
-- 領域名：Top 3入口
-    - 領域の目的や機能：現在選択しているTop 3の数と投票画面への導線を示す
-    - 領域のデザインのテイスト：画面下部に安定して見える強いaction bar
-    - 内部にある部品
-        - Selection count：`{selected} of 3 picked`で現在のranking候補数を示す
-        - Ballot action：`Build Your Top 3`でTop 3編集へ進む
-
-### 画面名：作品Groove
-
-この画面ですること：
-一作品を読み、他のReaderの反応を感じ、自分のスタンプと叫びをGrooveへ加える。
-
-- 領域名：作品hero
-    - 領域の目的や機能：作品、chapter、reading locationを提示する
-    - 領域のデザインのテイスト：表紙をfull-bleedで扱い、作品世界へ入る
-    - 内部にある部品
-        - Cover：作品を視覚的に識別する
-        - Chapter情報：今回の話を識別する
-        - Read action：`Read Official Chapter`で公式reading locationへ進む
-
-- 領域名：Live GrooveWave
-    - 領域の目的や機能：時間ごとの反応量、emotion分布、Readerの叫びを示す
-    - 領域のデザインのテイスト：音楽のwaveformとコメントstreamを組み合わせる
-    - 内部にある部品
-        - Wave chart：Room開始から現在までの熱を示す
-        - Emotion distribution：スタンプの分布を示す
-        - Shout stream：HCS順にReaderの叫びを示す
-
-- 領域名：自分の推し
-    - 領域の目的や機能：スタンプと叫びを選び、Groove eventを作る
-    - 領域のデザインのテイスト：感情の強さを保つ大きなスタンプと短い入力欄
-    - 内部にある部品
-        - Reaction palette：canonical Reaction vocabularyから感情を選ぶ
-        - Shout input：`Drop your post-chapter scream...`へ短い感想を入力する
-        - Groove action：`Send to the Groove`でwork、Reaction、Shout、accountを束ねたintentを作る
-        - Top 3 action：`Add to My Top 3` / `Remove from My Top 3`を切り替える
-
-### 画面名：Top 3 Ballot
-
-この画面ですること：
-三作品を順位付けし、初回投票または投票更新の意思を確定する。
-
-- 領域名：Ranking editor
-    - 領域の目的や機能：三作品の順序と3/2/1 point ruleを示す
-    - 領域のデザインのテイスト：投票用紙の明快さと漫画表紙の強さを両立する
-    - 内部にある部品
-        - Ranked work：`1st`、`2nd`、`3rd`、表紙、title、chapterを示す
-        - Reorder control：drag handleとMove Up / Move Downで作品順位を変更する
-        - Point guide：`1st: 3 pts · 2nd: 2 pts · 3rd: 1 pt`を示す
-
-- 領域名：Formal intent
-    - 領域の目的や機能：初回ballot、update、revokeのうち現在のactionを示す
-    - 領域のデザインのテイスト：署名直前の静かな確認領域
-    - 内部にある部品
-        - Action type：`New Ballot`、`Ballot Update`、`Ballot Withdrawal`を示す
-        - HashPack account：payerとなるaccountとnetworkを示す
-        - Completion deadline：logical event completionの期限を示す
-        - Network fee：見積額または`Estimated in HashPack`を示す
-        - Formal action：`Verify and Submit`、`Update Ballot`、`Withdraw Ballot`のいずれかで次へ進む
-
-### 画面名：Ballot記録確認
-
-この画面ですること：
-Readerへ現在の正式状態、HCS位置、World検証状態を返し、Roomへ復帰させる。
-
-- 領域名：記録結果
-    - 領域の目的や機能：CAPABILITY_GRANTED、BALLOT_UPDATED、BALLOT_REVOKEDの結果を示す
-    - 領域のデザインのテイスト：Reader-facing resultを第一視線にし、検証可能性は展開可能なdetailsとして保つ
-    - 内部にある部品
-        - Result title：`Your ballot counts`、`Ballot updated`、`Ballot withdrawn`のいずれかを示す
-        - Current Top 3：revoke以外で現在のformal intentを示す
-        - Verification Details：展開時にTopic / sequence、consensus timestamp、World anchor、manifest hashを示す
-        - Back action：`Back to the Groove`でライブRoomへ進む
-
-### 画面名：Room結果
-
-この画面ですること：
-deadlineまでの最後の意思を集計したrankingと、そのRoomのGrooveWaveを見返す。
-
-- 領域名：今週のranking
-    - 領域の目的や機能：順位、point、有効capability数を示す
-    - 領域のデザインのテイスト：雑誌の巻頭ランキング。winnerの表紙を大きく扱う
-    - 内部にある部品
-        - Winner feature：`Tonight's Winner`として一位作品を示す
-        - Final Ranking：全作品の順位とpointを示す
-        - Verification summary：`Verified Ballots`、cutoff、accepted ballot数を要約する
-        - Verify Results：manifest hash、result hash、public replayへ進む
-
-- 領域名：Room replay
-    - 領域の目的や機能：GrooveWave、主要emotion、転換点を時間順に振り返る
-    - 領域のデザインのテイスト：ライブのafter movieのような余韻
-    - 内部にある部品
-        - Timeline：Room開始からdeadlineまでの熱を示す
-        - Turning points：反応とrankingが動いた瞬間を示す
-        - 次の推し：Reader profileと実績を通じて新しい作品へ進む
-
-### 画面名：Special Room
-
-この画面ですること：
-
-- 領域名：Special Room hero
-    - 領域の目的や機能：賞、開催期間、選考テーマを伝える
-    - 領域のデザインのテイスト：
-    - 内部にある部品
-
-- 領域名：Reader Nominee
-    - 領域の目的や機能：候補者と公開実績を比較し、一人を選ぶ
-    - 領域のデザインのテイスト：人物の物語と実績を同時に見せる
-    - 内部にある部品
-        - Nominee profile：仮名、実績、推してきた作品を示す
-        - Public Contribution Signals：根拠eventへ辿れる候補理由を示す
-        - Voter selection：投票対象を一人選ぶ
-        - Formal action：`Vote for This Finalist`からWorld proofとWallet署名へ進む
+- 領域名：特別Room内部
+    - 領域名：Special Room hero
+        - 領域の目的や機能：賞、開催期間、選考テーマを伝える
+        - 領域のデザインのテイスト：
+        - 内部にある部品
+    - 領域名：Reader Nominee
+        - 領域の目的や機能：候補者と公開実績を比較し、一人を選ぶ
+        - 領域のデザインのテイスト：人物の物語と実績を同時に見せる
+        - 内部にある部品
+            - Nominee profile：仮名、実績、推してきた作品を示す
+            - Public Contribution Signals：根拠eventへ辿れる候補理由を示す
+            - Voter selection：投票対象を一人選ぶ
+            - Formal action：`Vote for This Finalist`からWorld proofとWallet署名へ進む
 
 
 ### 画面名：Wallet接続・World Proof進行
@@ -468,43 +353,35 @@ deadlineまでの最後の意思を集計したrankingと、そのRoomのGrooveW
         - World finality：anchor block finalityを示す
         - Capability granted：Room capability成立を示す
 
-### 画面名：My Oshikatsu
+### 画面名：My Oshikatsu（本棚）
 
 この画面ですること：
     自分の参加Room、推した作品、獲得実績を見返し、推しの近いReaderから次の漫画を見つける。
     これは画面下のNavigationから移動してくる
 
-- 領域名：仮名profile
-    - 領域の目的や機能：Hedera account、表示名、参加実績を示す
-    - 領域のデザインのテイスト：推し活手帳。収集物と履歴を整然と並べる
-    - 内部にある部品
-        - Account identity：仮名accountを示す
-        - Badge shelf：`Room Winner`、`Hidden Gem Scout`、`Long-Run Supporter`、`Rooms Joined`を示す
-        - My Shelf：登録作品をcover gridで示す
-        - Room History：参加RoomとTop 3を示す
+    - 領域名：仮名profile
+        - 領域の目的や機能：Hedera account、表示名、参加実績を示す
+        - 領域のデザインのテイスト：推し活手帳。収集物と履歴を整然と並べる
+        - 内部にある部品
+            - Account identity：仮名accountを示す
+            - Badge shelf：`Room Winner`、`Hidden Gem Scout`、`Long-Run Supporter`、`Rooms Joined`を示す
+            - My Shelf：登録作品をcover gridで示す
+            - Room History：参加RoomとTop 3を示す
 
-- 領域名：次の推し
-    - 領域の目的や機能：推しの近いReaderと、そのReaderが推す漫画を示す
-    - 領域のデザインのテイスト：人から本へ辿る推薦棚
-    - 内部にある部品
-        - Similar Reader：推し傾向の近い仮名profileを示す
-        - Recommended work：そのReaderが推した作品を示す
-        - 作品へ進む：reading locationまたは次回Roomへ進む
+    - 領域名：次の推し
+        - 領域の目的や機能：推しの近いReaderと、そのReaderが推す漫画を示す
+        - 領域のデザインのテイスト：人から本へ辿る推薦棚
+        - 内部にある部品
+            - Similar Reader：推し傾向の近い仮名profileを示す
+            - Recommended work：そのReaderが推した作品を示す
+            - 作品へ進む：reading locationまたは次回Roomへ進む
 
-### 画面名：My Shelf setup
+### 画面名：マイページ
 
 この画面ですること：
-    Readerがすでに好きな漫画を選び、初回Homeと推薦のcold startを改善する。選択はsocial graph用のpreferenceであり、formal ballotではない。My Shelfの選択をWorld proof、Room capability、一人一票判定へ使わない。
+    - 自分の情報を表示する
+    - Roomの作成もここから行う
 
-- 領域名：Starter shelf
-    - 領域の目的や機能：coverを見ながら複数作品を選び、My Shelfへ保存する
-    - 領域のデザインのテイスト：`imggen/image-1784954468846.png`のcover-first gridを使い、選択済み状態を明確にする
-    - 内部にある部品
-        - Heading：`Pick the manga you already love`
-        - Work cover：titleとcoverを示す
-        - Selection control：`Add to My Shelf` / `On My Shelf`を切り替える
-        - Skip：`Set Up Later`
-        - Save：`Save My Shelf`
 
 ## UI: Fandom vocabulary and Visual direction
 
