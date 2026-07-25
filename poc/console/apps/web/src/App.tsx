@@ -28,6 +28,14 @@ type VerificationArtifact = {
   signalMatches: boolean;
 };
 
+function getWorldIdErrorMessage(errorCode: string) {
+  if (errorCode === "timeout") {
+    return "接続が完了しませんでした。World Appの前回結果を閉じてから、新しいQRで再試行してください。";
+  }
+
+  return `World ID: ${errorCode}`;
+}
+
 export function App() {
   const [request, setRequest] = useState<WorldIdRequest | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -164,12 +172,15 @@ export function App() {
           rp_context={request.rp_context}
           allow_legacy_proofs={false}
           environment="production"
+          polling={{ interval: 1_000, timeout: 60_000 }}
           preset={proofOfHuman({ signal: request.signal })}
           handleVerify={verifyProof}
           onSuccess={setResult}
           onError={(errorCode) => {
             setLastErrorCode(errorCode);
-            setError(`World ID: ${errorCode}`);
+            setError(getWorldIdErrorMessage(errorCode));
+            setIsOpen(false);
+            setRequest(null);
           }}
         />
       )}

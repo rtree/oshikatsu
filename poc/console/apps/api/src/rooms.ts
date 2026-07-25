@@ -5,6 +5,7 @@ export const roomIds = [
   "lisbon-encore",
   "lisbon-presence-control",
   "lisbon-host-verify-control",
+  "lisbon-final-control",
 ] as const;
 
 export const roomIdSchema = z.enum(roomIds);
@@ -29,6 +30,11 @@ export const rooms = [
     id: roomIds[3],
     name: "Lisbon Host Verify Control",
     actionDescription: "Verify the corrected host proof policy",
+  },
+  {
+    id: roomIds[4],
+    name: "Lisbon Final Control",
+    actionDescription: "Verify the final Room-bound proof flow",
   },
 ] as const;
 

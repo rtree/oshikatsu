@@ -284,6 +284,42 @@
         "/^gcloud run deploy oshikatsu-api --image asia-northeast1-docker\\.pkg\\.dev/ethglobal-lisbon2026-oshikatsu/oshikatsu/oshikatsu-api:40883289-8137-4014-b94e-1b7d216f55ef --region asia-northeast1 --project ethglobal-lisbon2026-oshikatsu --service-account oshikatsu-api@ethglobal-lisbon2026-oshikatsu\\.iam\\.gserviceaccount\\.com --allow-unauthenticated --port 8080 --cpu 1 --memory 512Mi --min 0 --max 3 --quiet --format='value\\(status\\.latestReadyRevisionName\\)' && npx --yes firebase-tools@15\\.24\\.0 deploy --only hosting --config /Users/araki/operations/oshikatsu/poc/console/firebase\\.json --project ethglobal-lisbon2026-oshikatsu --non-interactive$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.revision_name=\"oshikatsu-api-00005-dt4\" AND severity>=ERROR' --project ethglobal-lisbon2026-oshikatsu --limit=10 --freshness=10m --format='value\\(textPayload\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud logging read 'resource\\.type=\"cloud_run_revision\" AND resource\\.labels\\.service_name=\"oshikatsu-api\" AND httpRequest\\.requestUrl:\"/api/world-id/request\"' --project ethglobal-lisbon2026-oshikatsu --limit=5 --freshness=15m --format='table\\(timestamp,httpRequest\\.status,httpRequest\\.latency\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh issue comment 6 --repo rtree/oshikatsu --body \\$'## Additional reproduction: stale completed dialog consumes next deep link\\\\n\\\\nA separate lifecycle condition now reproduces the nonterminal bridge state:\\\\n\\\\n1\\. Complete a Selfie Beta proof in World App and leave the World App `Completed` dialog open\\.\\\\n2\\. On Android, scan a fresh QR with the system camera, launching World App through the external deep link\\.\\\\n3\\. World App opens but does not show the new proof-consent/human-verification UI\\.\\\\n4\\. The RP changes to `Connecting\\.\\.\\. Please continue in app`\\.\\\\n\\\\nObserved evidence:\\\\n- Fresh request issued at `2026-07-25T13:55:51Z`\\\\n- Wallet Bridge: `status=retrieved`, `response=null`\\\\n- Cloud Run revision: `oshikatsu-api-00005-dt4`\\\\n- `/api/world-id/verify`: not called\\\\n- Server errors: none\\\\n\\\\nInterpretation:\\\\n- The previous World App Completed modal and the new RP request are out of sync\\.\\\\n- The external camera deep link is consumed/retrieved, but World App neither starts the new request UI nor publishes a terminal proof/error\\.\\\\n- This is distinct from the corrected host schema issue and is reproducible before host verification\\.\\\\n\\\\nExpected:\\\\n- World App should close/replace the stale Completed modal and start the new request, or return an encrypted terminal error so IDKit can recover\\.\\\\n\\\\nRP mitigation being added:\\\\n- Bound bridge polling to a short diagnostic timeout instead of the SDK default 15-minute spinner\\.\\\\n- Discard the consumed request on timeout and require a fresh RP context for retry\\.\\\\n- Show an actionable message asking the user to close the prior World App result before retrying\\.\\\\n\\\\nNo connector URL, bridge ID, proof, nullifier, signature, nonce, biometric data, or secret is included\\.'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm --prefix /Users/araki/operations/oshikatsu/poc/console run check --workspace @oshikatsu/web$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm --prefix /Users/araki/operations/oshikatsu/poc/console run build --workspace @oshikatsu/web && npx --yes firebase-tools@15\\.24\\.0 deploy --only hosting --config /Users/araki/operations/oshikatsu/poc/console/firebase\\.json --project ethglobal-lisbon2026-oshikatsu --non-interactive$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh issue comment 6 --repo rtree/oshikatsu --body \\$'## RP recovery mitigation deployed\\\\n\\\\nThe RP now bounds IDKit bridge polling to 60 seconds instead of leaving users on the SDK default 15-minute spinner\\. On `timeout`, it discards the consumed request and shows an actionable message to close the prior World App result before generating a fresh QR\\. Other terminal errors also discard the current request\\.\\\\n\\\\nDeployment:\\\\n- Hosting: https://ethglobal-lisbon2026-oshikatsu\\.web\\.app\\\\n- API revision remains `oshikatsu-api-00005-dt4`\\\\n\\\\nThis mitigates the RP UX but does not fix the World App lifecycle bug \\(`retrieved / response=null`\\)\\.'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gh issue edit 6 --repo rtree/oshikatsu --title 'World App: user-presence and stale Completed dialog can leave QR bridge nonterminal' && gh issue comment 6 --repo rtree/oshikatsu --body \\$'## Credential classification correction\\\\n\\\\nThe successful baseline result was protocol `4\\.0`, identifier `proof_of_human`, issuer schema ID `1`\\. Official credential documentation classifies schema ID 1 as the Orb-backed Proof of Human credential\\.\\\\n\\\\nTherefore:\\\\n- The request was \\*\\*not\\*\\* `selfieCheckLegacy` \\(schema ID 11 / legacy Face proof\\)\\.\\\\n- The visible Selfie step was most likely the optional `require_user_presence` liveness check layered on top of the Orb-backed PoH credential\\.\\\\n- Removing `require_user_presence` did not weaken the requested credential from PoH to Selfie; it removed only the extra fresh liveness step\\.\\\\n- The product still receives Orb-backed PoH uniqueness when the proof succeeds\\.\\\\n\\\\nThe partner Beta context may still affect the World App UX, but the Issue must not claim that the returned credential itself was Selfie Check\\. The title has been corrected accordingly\\.\\\\n\\\\nAn explicit `orbLegacy` test would exercise a v3 legacy Orb proof and is not a cleaner control for the desired v4 Room semantics\\. The current `proofOfHuman` schema-1 path is the correct v4 Orb control\\.'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm --prefix /Users/araki/operations/oshikatsu/poc/console run check && npm --prefix /Users/araki/operations/oshikatsu/poc/console run build && gcloud builds submit /Users/araki/operations/oshikatsu/poc/console --project ethglobal-lisbon2026-oshikatsu --config /Users/araki/operations/oshikatsu/poc/console/cloudbuild\\.api\\.yaml --format='value\\(id\\)' --quiet$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^gcloud run deploy oshikatsu-api --image asia-northeast1-docker\\.pkg\\.dev/ethglobal-lisbon2026-oshikatsu/oshikatsu/oshikatsu-api:869a7066-a83e-4374-b097-8c56f3b01e1a --region asia-northeast1 --project ethglobal-lisbon2026-oshikatsu --service-account oshikatsu-api@ethglobal-lisbon2026-oshikatsu\\.iam\\.gserviceaccount\\.com --allow-unauthenticated --port 8080 --cpu 1 --memory 512Mi --min 0 --max 3 --quiet --format='value\\(status\\.latestReadyRevisionName\\)' && npx --yes firebase-tools@15\\.24\\.0 deploy --only hosting --config /Users/araki/operations/oshikatsu/poc/console/firebase\\.json --project ethglobal-lisbon2026-oshikatsu --non-interactive$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
