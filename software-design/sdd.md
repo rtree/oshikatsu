@@ -202,10 +202,12 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
     - 領域の目的や機能： 画面下部にいつもいるアイコン＋画面名のボタン。画面間を移動するためのもの
     - 領域のデザインのテイスト： ダークモード＋ネオンカラー
     - 内部にある部品
-        - ホーム　　: ホーム画面を表示するボタン
-        - ランキング: ランキング画面を表示するボタン
-        - 本棚　　　: 本棚画面を表示するボタン
-        - マイページ: マイページ画面を表示するボタン
+        - `Home`：ホーム画面を表示する
+        - `Rankings`：Roomのrankingと結果を表示する
+        - `My Shelf`：登録作品と次の推しを表示する
+        - `Profile`：仮名profile、実績、Room作成を表示する
+
+    navigation項目と順序は全画面で固定する。現在地はlabel、icon、accent colorの組で示し、colorだけに依存しない。
 
 ### 画面名：ホーム
 
@@ -214,9 +216,10 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 
 - 領域名：推し活を始める
     - 領域の目的や機能：初回登録前にWallet登録に進むためのボタンを表示する場所
-    - 領域のデザインのテイスト：
+    - 領域のデザインのテイスト：ライブ会場へ入る一つの強いCTAとして、背景の熱量から明確に分離する
     - 内部にある部品
-        - ▶︎推し活を始める: ボタン。これを押すとWallet登録画面に進む。Wallet登録後は自分の読んでいる作品を登録したのち、ホーム画面に戻ってくる
+        - `Start My Oshikatsu`：Wallet接続へ進む。接続後はMy Shelfの初回設定を経てホームへ戻る
+        - `Browse First`：Walletを接続せず、公開中のRoomを見る
 
 - 領域名：Room一覧
     - Room名と現在の状況を示すボタンが、複数並んでいて、現在Voteを受付中のRoomが一番上。次にこれから始まる開始前のRoomが並んでいる
@@ -265,7 +268,7 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
             - 内部にある部品
                 - Lineup：cover stackと`Tonight's Lineup`で候補作品の全体像を伝える
                 - Locked state：`Lineup Locked`を表示する
-                - 推す：推すボタン。この作品へ投票・コメントするものを選択する
+                - `Open Groove`：作品のGrooveへ進む。これだけではformal ballotを変更しない
         - 領域名：VotingStatus
             - 領域の目的や機能：選んだ作品のGroove（他の人のスタンプや叫びの勢い）を表示する
             - 領域のデザインのテイスト：みんなが作品の周りに集まっている画面。作品が中心にあり、周りにみんなのスタンプが囲っている
@@ -281,15 +284,16 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
                     スタンプ名　X人
                 - スタンプを押した人数
                 - 叫び一覧
-                - 推す　ボタン
-                    - VotingDialogueを表示するボタン
+                - `Osu!(React & Shout)`
+                    - VotingDialogueを表示する。これだけではformal ballotを変更しない
                     - 領域名：VotingDialogue
                         - 領域の目的や機能：スタンプと叫びを選び、Groove eventを作る
                         - 領域のデザインのテイスト：感情の強さを保つ大きなスタンプと短い入力欄
                         - 内部にある部品
-                            - Reaction palette：canonical Reaction vocabularyから感情を選ぶ
+                            - Reaction palette：`🔥 Peak Chapter`、`😭 Cried My Eyes Out`、`🥺 Too Precious`、`🐉 Next Chapter Now`、`👑 Chapter of the Week`、`💡 I'm Dead`、`🤗 I Melted`、`🐼 Emotionally Wrecked`、`🌋 I'm Losing It`から選ぶ
                             - Shout input：`Drop your post-chapter scream...`へ短い感想を入力する
                             - Groove action：`Send to the Groove`でwork、Reaction、Shout、accountを束ねたintentを作る
+                - `Add to My Top 3`：この作品をranking候補へ加える。追加済みなら`Remove from My Top 3`へ切り替える
     - 領域名：投票後画面VotingRanking
         - 領域の目的や機能：deadlineまでの最後の意思を集計したrankingと、そのRoomのGrooveWaveを見返す。
         - 領域のデザインのテイスト：画面下部に安定して見える強いaction bar
@@ -315,8 +319,11 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
         - 内部にある部品
             - Nominee profile：仮名、実績、推してきた作品を示す
             - Public Contribution Signals：根拠eventへ辿れる候補理由を示す
+            - Activity summary：public eventを短く要約する。AI生成時は`AI-generated summary of public activity`と表示し、必ず根拠eventへ辿れるようにする
             - Voter selection：投票対象を一人選ぶ
             - Formal action：`Vote for This Finalist`からWorld proofとWallet署名へ進む
+
+        AI outputは候補資格、投票weight、順位、reward entitlementを決めない。AIが利用不能でも候補比較とformal ballotを続行できる。
 
 
 ### 画面名：Wallet接続・World Proof進行
@@ -382,178 +389,63 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
     - 自分の情報を表示する
     - Roomの作成もここから行う
 
+- 主な英語label
+    - 画面名：`Profile`
+    - Room作成：`Create a Room`
+
 
 ## UI: Fandom vocabulary and Visual direction
 
-### Fandom vocabulary
+Reader App章を画面、遷移、部品、表示copyの正本とする。この章では各画面の内容を再定義せず、全画面へ共通して適用する判断だけを定める。
 
-Reader Appで利用者に表示するUI copyは英語を正本とする。日本語はこの設計書における意図説明にのみ使い、実装では英語copy keyを参照する。
+### Language
 
-英語表現は、Crunchyroll Anime Awardsで定着している`Nominees`、`Vote`、`Winners`、Bilibili英語版で使われる`Trending Now`、`For You`、`Views`を基礎にする。その上で、ファン同士の会話には`oshi`、`peak`、`too precious`、`I'm dead`、`emotionally wrecked`など英語圏のanime/manga communityで通じる語を使う。
+利用者に表示するcopyは英語を正本とし、日本語は設計意図の説明にのみ使う。操作名は結果の違いを曖昧にしない。
 
-同じ日本語の「推す」でも、操作のformal effectに応じて英語を分ける。
+- `React`と`Shout`はGrooveへの表現であり、ballotを変更しない。
+- `Nominate`はRoom開始前の候補追加にだけ使う。
+- `Vote`と`Ballot`はHCSへ記録するformal intentにだけ使う。
+- 更新は`Update Ballot`、取消は`Withdraw Ballot`とし、`Delete`や意味のない`Confirm`を使わない。
+- `Oshi`と`Groove`はOshikatsu固有語として使う。初見で意味が推測できない場所では、作品、Room、応援の文脈を同時に示す。
+- 一般参加者を`Jury`とは呼ばず、`Voter`または`Verified Voter`とする。
 
-| Product concept | UI term | Usage rule |
-| --- | --- | --- |
-| 推し | `Oshi` | ブランド固有のfavorite。初出では`Your Oshi`のように文脈を添える |
-| 推し活 | `Oshi Time` | 共有時間そのもの。Room参加CTAでは`Join the Groove`を優先する |
-| 作品を推す | `Cheer` | 感情や応援を送るinformal action。formal ballotには使わない |
-| スタンプ | `React` / `Reaction` | emotion stampを送る操作と、その結果 |
-| 叫び | `Shout` | 短い熱量の高い感想。一般的な長文`Comment`と区別する |
-| 候補に推薦 | `Nominate` | Nomination Window中のcandidate追加 |
-| 投票 | `Vote` / `Ballot` | HCSへ記録されるformal intentだけに使う |
-| 投票を更新 | `Update Ballot` | capabilityを使うranking更新 |
-| 投票を取消 | `Withdraw Ballot` | current intentをrevokeへ更新。`Delete`は使わない |
-| 盛り上がり | `Groove` | Oshikatsu固有のlive reaction aggregate |
-| 共鳴数 | `Resonance` | ReactionとShoutから導出するengagement指標 |
-| 実績 | `Badges` | profileで収集するachievement。NFTである場合だけ`NFT`と表示する |
-| 原石発掘 | `Hidden Gem Scout` | 早期にwinnerを推したachievement |
-| 継続応援 | `Long-Run Supporter` | 連続Room参加achievement |
-
-`Stan`は強い支持を表す一方で人物、作品、皮肉のいずれにも使われるため、command labelには使わない。`Like`は軽すぎてformal effectを誤認させるため、Reaction count以外には使わない。`Jury`は専門審査員を連想させるため、World IDで検証された一般参加者には`Voter`または`Verified Voter`を使う。
-
-Reactionはemojiだけに依存せず、screen readerと意味の一貫性のため英語labelを必ず持つ。
-
-| Emoji | Canonical label | Fan-facing nuance |
-| --- | --- | --- |
-| 🔥 | `Peak Chapter` | 神回、peak fiction |
-| 😭 | `Cried My Eyes Out` | 泣いた |
-| 🥺 | `Too Precious` | 尊い、must protect |
-| 🐉 | `Next Chapter Now` | 続き召喚 |
-| 👑 | `Chapter of the Week` | 優勝 |
-| 💡 | `I'm Dead` | 無事死亡 |
-| 🤗 | `I Melted` | 溶けた |
-| 🐼 | `Emotionally Wrecked` | 情緒崩壊 |
-| 🌋 | `I'm Losing It` | 情緒噴火 |
-
-Shoutのplaceholderは`Drop your post-chapter scream...`とする。seed copyには`Thank you, sensei. I won't survive until next week.`、`This chapter was PEAK.`、`My emotions are in shambles.`を使える。ただし同じ文を自動投稿せず、利用者本人の入力だけをHCSへ送る。
+ファン語はShout、Reaction、Room演出では積極的に使うが、Wallet署名、World proof、deadline、検証結果では平易で直接的な英語を使う。
 
 ### Visual direction
 
-`imggen/`の画像はvisual referenceであり、そのまま一枚絵として画面全体へ貼らない。実装では背景、cover、avatar、装飾を個別assetとして使い、title、countdown、buttons、navigation、statusはReact componentとして再構成する。これによりresponsive layout、英語copy、accessibility、live data更新を成立させる。
+Reader Appは「黒い画面に紫を置く」のではなく、暗転したライブ会場へ漫画の世界が投影され、Readerの反応で光と熱が増していく体験として描く。
 
-- 基調はblack stage、electric violet、hot magenta、cyan highlight。Special Roomだけgoldをwinner hierarchyへ使う。
-- manga coverとRoom venueを第一視線に置き、説明文をhero cardへ閉じ込めない。
-- glowはprimary CTA、live state、winner revealへ限定する。通常のlist itemとform fieldは静かなoutlineで保つ。
-- confetti、light sticks、floating reactionsはRoom phaseに連動するmotion layerとし、本文やcontrolsを覆わない。
-- body textとprotocol statusは高contrastを維持する。magenta textをsmall body copyへ使わない。
-- bottom navigationは画面ごとに項目を変えず、`Home / Rankings / Groove / Community / Profile`へ固定する。中央の`Groove`だけRoomがOPENのときactive actionとして強調する。
-- mobile firstで設計し、desktopでは中央のlive canvasと左右のRoom/ballot railへ展開する。mobile screenshotを横に引き伸ばさない。
+- 背景はblackを基調にし、作品cover、会場照明、light stickを視線の起点にする。
+- 通常Roomのenergyはelectric violet、hot magenta、cyanで表す。goldはwinner、順位、Special Roomのceremonyに限定する。
+- manga coverと人物を最も強い視覚情報とし、説明文や操作panelが作品を覆わないようにする。
+- primary actionは大きく一つだけ置く。glowはprimary action、live state、winner revealに限定し、通常のlist、form、protocol detailは静かなoutlineで区別する。
+- countdown、人数、ranking、verification stateは画像へ焼き込まず、live dataを表示するUIとして構成する。
+- confetti、floating Reaction、light beamは状態変化を伝えるmotion layerとし、本文、操作、coverの顔を覆わない。
+- Special Roomは通常Roomと同じ夜の会場を土台にし、laurel、crown、gold lightでceremonyへ変化させる。別productのような配色にはしない。
 
-#### Image reference map
+### Composition
 
-これは画像の解説であって、画面遷移は Reader App 章における定義を優先する
+- mobile firstとし、主要なvisual、現在のphase、primary actionが最初のviewportで理解できるようにする。
+- bottom navigationの項目と順序はReader Appの定義に従い、画面ごとに変更しない。
+- 固定action barとbottom navigationが本文、最後のcard、入力欄を隠さないsafe areaを確保する。
+- desktopではmobile画面を拡大せず、中央にRoomまたは作品、左右にLineup、Groove、ballot statusを配置する。
+- listとcomparisonは一定のcover ratioとrow heightを保ち、titleやcountの長さでlayoutを動かさない。
 
-| Flow / screen | Source reference | Adopt | Do not copy literally |
-| --- | --- | --- | --- |
-| Home / Room entrance | `imggen/image-1784953999932.png`, `imggen/image-1784954070675.png` | full-bleed venue、Room stats、強いentry CTA | 日本語を画像に焼き込む、nav項目の重複 |
-| My Shelf onboarding | `imggen/image-1784954468846.png` | cover-first selection、selected state | 2-column固定、`Registered`という曖昧な状態 |
-| Wallet connection | `imggen/image-1784954508343.png` | walletを一つのtrust stepとして見せる | EVM walletの選択肢。PoCはHashPackのみ |
-| World proof request | `imggen/image-1784954593038.png` | privacy benefitと単一CTA | World logoの独自改変、proof完了前のverified表示 |
-| Room lobby | `imggen/image-1784954638192.png` | 開演countdown、待機人数、venue anticipation | countdownを画像へ焼き込む |
-| Live Room / release list | `imggen/image-1784954665810.png` | chapter update list、cover、Groove summary | `Cheer`をformal Voteとして扱う |
-| Work Groove hero | `imggen/image-1784954689187.png` | full-bleed cover、chapter、deadline | `0/1 votes`。通常RoomはTop 3 ballot |
-| Reaction composer | `imggen/image-1784954719101.png` | large reaction palette、Shout input | emojiだけで意味を伝える |
-| Live GrooveWave | `imggen/image-1784954742234.png` | reaction swarm、distribution、live count | decorative emojiがdataを隠す |
-| Community Shouts | `imggen/image-1784954762466.png` | avatar、Shout、Reaction counts、sort | heartをformal vote countとして表示する |
-| Room result | `imggen/image-1784954781042.png` | winner feature、2位・3位、share CTA | verification summaryを省略する |
-| My Oshikatsu | `imggen/image-1784954798005.png` | badge shelf、My Shelf、participation identity | account identityを完全に隠す |
-| Special Room nominee grid | `imggen/image-1784954825397.png`, `imggen/image-1784954870788.png` | numbered nominees、evidence metrics | AI scoreを投票資格や自動順位にする |
-| Special Room criteria and CTA | `imggen/image-1784954892262.png`, `imggen/image-1784954921738.png` | evidence categories、deadline、single strong CTA | `AI evaluation`を客観的事実として表示する |
-| Nominee story | `imggen/image-1784954950738.png`, `imggen/image-1784954971434.png`, `imggen/image-1784954992612.png` | profile narrative、public evidence、discovered works | metricの出典を省略する |
-| Special Room winner | `imggen/image-1784955011133.png`, `imggen/image-1784955035593.png`, `imggen/image-1784955052427.png` | ceremonial reveal、all finalists、award record | 未実装rewardを確定特典として見せる |
-| Wallet protocol reference | `imggen/image-1784861856560.png`, `imggen/image-1784862707894.png` | wallet approval sheetの情報密度 | Oshikatsuのvisual directionとして使う |
+### State expression
 
-画像に含まれる漫画cover、人物、logoはprototype assetとして扱う。本番投入前に、作品ごとの配信許諾、人物画像の利用権、Worldおよびwallet brand guidelineを確認する。
+- presence countと`Verified Voter`数を同じ数字として扱わない。
+- HCSへの送信完了は投票成立ではない。`CAPABILITY_GRANTED`になるまでsuccess color、checkmark、confettiを使わない。
+- `PENDING`は進行中、`UNVERIFIABLE`は公開証拠の一時不足、`INVALID`は検証不成立として、色、icon、copyを分ける。
+- protocol hash、sequence、block情報は隠さず、主画面では要約し、詳細を開いたときに確認できるようにする。
+- error画面でもReaderのTop 3や入力済みShoutを保持し、再試行で最初から選び直させない。
 
-#### Canonical Reader flow
+### Accessibility and assets
 
-ReaderはWallet未接続でもHome、Lobby、Lineup、Live Groove、Resultsを閲覧できる。署名が必要な操作を始めた時点でHashPack接続へ進む。
-
-```text
-Home
-   -> Room Lobby
-   -> Live Room
-   -> Chapter Groove
-   -> Build Your Top 3
-   -> Connect HashPack（未接続の場合）
-   -> Review Ballot
-   -> Verify with World ID（Roomへの初回ballotだけ）
-   -> Sign and Submit
-   -> Ballot Status
-   -> Back to Live Room
-```
-
-World proofのsignalはRoom、ranking、ballot hash、Hedera accountを束縛する。そのため、`imggen/image-1784954593038.png`のWorld proof画面はonboarding直後ではなく、Top 3とWallet accountが確定した後に表示する。World ID verificationだけを先に済ませて後からrankingへ流用するflowは禁止する。
-
-ReactionとShoutはGroove eventであり、formal ballotとは別操作とする。`React`や`Cheer`を押しただけではTop 3へ追加せず、投票済みにもしない。Special Roomは通常Roomと別manifest、別World action、別ballotを持つ。
-
-#### Canonical English screen copy
-
-copyは実装時にi18n keyへ分離する。以下を英語UIの初期正本とし、同じ状態に複数の言い回しを混在させない。
-
-| Screen | Heading / lead | Primary action | Supporting copy |
-| --- | --- | --- | --- |
-| Home | `Manga fans make manga culture thrive.` | `Join the Groove` | `Tonight's Chapter Drop` / `Doors open in` |
-| My Shelf setup | `Pick the manga you already love` | `Save My Shelf` | `We'll use your shelf to help you spot your next oshi.` |
-| Wallet | `Connect HashPack` | `Connect HashPack` | `Your wallet signs your ballot. Oshikatsu never sees your private key.` |
-| Room Lobby | `Tonight's Groove starts in` | `Enter the Room` | `{count} fans are waiting` / `Lineup locked` |
-| Nominations | `Nominations are open` | `Nominate a Manga` | `Add one chapter before the Room opens.` |
-| Live Room | `Fresh Chapters Today` | `Build Your Top 3` | `{selected} of 3 picked` / `Ballots close in` |
-| Chapter Groove | `How did this chapter hit you?` | `Send to the Groove` | `React, shout, and let the Room feel it.` |
-| Top 3 Ballot | `Rank Your Top 3` | `Review Ballot` | `1st: 3 pts · 2nd: 2 pts · 3rd: 1 pt` |
-| Ballot review | `Ready to back your Top 3?` | `Verify and Submit` | `Your ranking, Room, and HashPack account will be bound into one proof.` |
-| World proof | `One human. One spot in this Room.` | `Verify with World ID` | `Orb-verified human` / `Unique in this Room` / `Privacy-preserving proof` |
-| Ballot status | `Checking your ballot` | `View Verification Details` | 状態に応じて下記status copyを使う |
-| Ballot recorded | `Your ballot counts` | `Back to the Groove` | `You can update or withdraw it until the deadline.` |
-| Room Results | `Tonight's Winner` | `Share Results` | `Final ranking from verified ballots` |
-| My Oshikatsu | `My Oshikatsu` | `Find My Next Oshi` | `My Shelf` / `Badges` / `Rooms Joined` |
-| Special Room | `Finalist Vote` | `Vote for This Finalist` | `Seven fans who moved manga culture forward` |
-| Special Room result | `Finalists Announced` | `Explore Every Finalist` | `Chosen by verified voters` |
-
-Homeのstatsは`Titles Dropping Today`、`Fans in the Lobby`、`Doors Open In`とする。Live Roomでは`Readers`より参加資格を正確に表す`Verified Fans`を優先する。閲覧数はBilibili型の`Views`、公式chapterへの遷移は`Read Official Chapter`とする。
-
-#### Formal action labels
-
-| State | Primary label | Confirmation title |
-| --- | --- | --- |
-| 初回ballot | `Submit Ballot` | `Submit your Top 3?` |
-| ranking更新 | `Update Ballot` | `Update your Top 3?` |
-| revoke | `Withdraw Ballot` | `Withdraw your ballot?` |
-| revoke後の再投票 | `Submit New Ballot` | `Submit a new Top 3?` |
-
-署名前のconfirmationにはHedera account、network fee estimate、deadline、action typeを表示する。buttonに`Confirm`だけを使わず、何が起きるかをlabelで示す。
-
-#### Protocol status copy
-
-| Protocol state | Reader-facing title | Reader-facing detail |
-| --- | --- | --- |
-| `PROOF_ACQUIRED` | `Human proof ready` | `Your proof is bound to this Room and ballot.` |
-| `SUBMITTED` | `Sent to Hedera` | `Your ballot was submitted, but it is not counted yet.` |
-| `REASSEMBLED` | `Ballot received` | `The full message is here. Now checking its public evidence.` |
-| `WAITING_WORLD_FINALITY` | `Waiting for World Chain finality` | `This usually takes a little while. You can leave this screen safely.` |
-| `VALID` | `Proof verified` | `The ballot and its historical World state agree.` |
-| `CAPABILITY_GRANTED` | `Your ballot counts` | `You can update or withdraw it until the deadline.` |
-| `NULLIFIER_CONFLICT` | `You already have a ballot in this Room` | `Only the first valid ballot for this World ID can receive the Room spot.` |
-| `UNVERIFIABLE` | `Verification is temporarily unavailable` | `We cannot independently verify the historical World state yet. We'll retry.` |
-| `INVALID` | `This ballot could not be verified` | reason codeを平易な一文へ変換して表示する |
-| `REASSEMBLY_PENDING` | `Still receiving your ballot` | `Some Hedera message chunks have not arrived yet.` |
-| deadline超過 | `The deadline passed before submission completed` | `The full ballot did not reach Hedera consensus in time.` |
-| Wallet拒否 | `Signature canceled` | `Nothing was submitted.` |
-| World App拒否 | `Verification canceled` | `No ballot was created.` |
-
-`UNVERIFIABLE`を`Invalid proof`と表示してはならない。`SUBMITTED`、`REASSEMBLED`、`WAITING_WORLD_FINALITY`でsuccess confettiを出さず、`CAPABILITY_GRANTED`で初めて投票成立のmotionを出す。
-
-#### Special Room evidence policy
-
-`imggen/image-1784954892262.png`にある`AI Agent evaluation`は、候補者をAIが採点して順位付けする機能として実装しない。Vertex AIを使う場合は、public eventから候補者の活動を要約し、読者が根拠へ辿るための補助に限定する。
-
-- section headingは`Public Contribution Signals`とする。
-- categoriesは`Consistent Participation`、`Thoughtful Shouts`、`Hidden Gem Finds`、`Long-Run Support`とする。
-- AI生成要約には`AI-generated summary of public activity`と表示する。
-- 各summaryから根拠となるRoom、HCS event、countへ遷移できるようにする。
-- AI outputをNominee eligibility、ballot weight、final ranking、reward entitlementへ使わない。
-- AIが利用不能でもSpecial Roomのnominee比較とformal ballotを続行できるようにする。
+- body textとprotocol statusは高contrastを保ち、small textへmagentaやvioletを使わない。
+- Reactionはemojiと英語labelを組み合わせ、screen readerへ同じ意味を渡す。
+- motionを止めてもphase、ranking、結果が理解できるようにし、`prefers-reduced-motion`ではswarm、pulse、confettiを停止する。
+- title、countdown、count、button、navigationはtextとcomponentで実装し、bitmapへ含めない。
+- 背景、cover、avatar、frame、textureは用途ごとに分離し、異なるaspect ratioでも主被写体を失わないfocal pointを持たせる。
 
 
 # Part III: API Build + Headless PoC Testing
@@ -733,7 +625,7 @@ API Build + Headless PoC TestingのCompletion Gate通過後、画面定義へ具
 - [ ] PENDING、INVALID、UNVERIFIABLEをReader向けの言葉とvisual stateへ変換する
 - [ ] Roomの時間、GrooveWave、World Proof進行、Ballot current intentをinteraction prototypeへ落とす
 - [ ] desktopとmobileのnavigation、layout、motion、accessibilityを設計する
-- [ ] `imggen/`をreference-only sourceとして保持し、実装に使う背景、cover、avatar、textureを用途別にsliceする
+- [ ] 実装に使う背景、cover、avatar、frame、textureを用途別assetへ分離する
 - [ ] 画像へ焼き込まれた日本語、countdown、counts、buttons、bottom navigationをReact componentへ置き換える
 - [ ] source assetとderivative assetの対応、crop focal point、license statusをasset manifestへ記録する
 - [ ] canonical English screen copyとprotocol status copyをi18n keyへ変換する
