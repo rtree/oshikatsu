@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { encodeGrooveEvent, reactionIds } from "@oshikatsu/protocol";
+import { createHash, randomUUID } from "node:crypto";
+import { decodeGrooveEvent, encodeGrooveEvent, reactionIds } from "@oshikatsu/protocol";
 import { z } from "zod";
 import { getFirestore } from "./firestore.js";
 import { getRoom, requireActiveRoom, roomIdSchema } from "./rooms.js";
@@ -45,6 +45,60 @@ type MirrorMessage = {
   topic_id: string;
 };
 
+export type ConfirmedShout = {
+  status: "CONFIRMED";
+  prepare_id: string;
+  room_id: string;
+  work_id: string;
+  transaction_id: string;
+  topic_id: string;
+  payer_account_id: string;
+  sequence_number: number;
+  consensus_timestamp: string;
+  message_base64: string;
+  message_bytes: number;
+  event_hash: string;
+};
+
+function claimId(roomId: string, accountId: string) {
+  return createHash("sha256").update(`${roomId}\0${accountId}`).digest("hex");
+}
+
+function earlierShout(left: ConfirmedShout, right: ConfirmedShout) {
+  if (left.sequence_number !== right.sequence_number) return left.sequence_number < right.sequence_number ? left : right;
+  if (left.consensus_timestamp !== right.consensus_timestamp) return left.consensus_timestamp < right.consensus_timestamp ? left : right;
+  return left.event_hash <= right.event_hash ? left : right;
+}
+
+function foldUniqueShouts(events: ConfirmedShout[]) {
+  const claims = new Map<string, ConfirmedShout>();
+  for (const event of events) {
+    const key = `${event.room_id}\0${event.payer_account_id}`;
+    const current = claims.get(key);
+    claims.set(key, current ? earlierShout(current, event) : event);
+  }
+  return [...claims.values()].sort((left, right) => left.sequence_number - right.sequence_number);
+}
+
+export function rankRoomWorks(roomId: string, workIds: string[], events: ConfirmedShout[]) {
+  const counts = new Map(workIds.map((id) => [id, 0]));
+  for (const event of foldUniqueShouts(events.filter((candidate) => candidate.room_id === roomId))) {
+    if (counts.has(event.work_id)) counts.set(event.work_id, (counts.get(event.work_id) ?? 0) + 1);
+  }
+  const ordered = workIds.map((workId, manifestIndex) => ({ work_id: workId, shout_count: counts.get(workId) ?? 0, manifestIndex }))
+    .sort((left, right) => right.shout_count - left.shout_count || left.manifestIndex - right.manifestIndex);
+  let currentRank = 1;
+  return ordered.map((entry, index) => {
+    if (index > 0 && entry.shout_count !== ordered[index - 1]?.shout_count) currentRank = index + 1;
+    return {
+      rank: currentRank,
+      work_id: entry.work_id,
+      shout_count: entry.shout_count,
+      tied: ordered.some((candidate) => candidate.work_id !== entry.work_id && candidate.shout_count === entry.shout_count),
+    };
+  });
+}
+
 function transactionKey(transactionId: string) {
   const decoded = decodeURIComponent(transactionId).trim();
   const atMatch = /^(0\.0\.\d+)@(\d+)\.(\d+)$/.exec(decoded);
@@ -60,6 +114,13 @@ export async function prepareGroove(input: z.infer<typeof groovePrepareSchema>) 
   await requireActiveRoom(room.id);
   if (room.phase !== "LIVE") throw new Error("Room is not live.");
   if (!room.works.some((work) => work.id === input.work_id)) throw new Error("Work is not in this Room.");
+  if (input.shout === undefined) throw new Error("A Shout is required for the demo vote.");
+  const existingClaim = await getFirestore().collection("groove_shout_claims").doc(claimId(room.id, input.account_id)).get();
+  if (existingClaim.exists) throw new Error("DUPLICATE_SHOUT");
+  const legacy = await getFirestore().collection("groove_events").where("room_id", "==", room.id).limit(100).get();
+  if (legacy.docs.some((document) => (document.data() as ConfirmedShout).payer_account_id === input.account_id)) {
+    throw new Error("DUPLICATE_SHOUT");
+  }
 
   const id = `groove-${randomUUID().replaceAll("-", "")}`;
   const bytes = encodeGrooveEvent({
@@ -135,7 +196,11 @@ export async function getGrooveStatus(prepareId: string, transactionId: string) 
   });
   if (!match) return { status: "INVALID", reason: "MIRROR_EVIDENCE_MISMATCH" } as const;
 
-  const confirmed = {
+  const decoded = decodeGrooveEvent(expectedBytes);
+  if (decoded.t !== "s" || decoded.r !== preparation.room_id || decoded.n !== preparation.work_id || decoded.a !== preparation.account_id) {
+    return { status: "INVALID", reason: "CANONICAL_EVENT_MISMATCH" } as const;
+  }
+  const confirmed: ConfirmedShout = {
     status: "CONFIRMED",
     prepare_id: preparation.id,
     room_id: preparation.room_id,
@@ -148,16 +213,26 @@ export async function getGrooveStatus(prepareId: string, transactionId: string) 
     message_base64: preparation.message_base64,
     message_bytes: preparation.message_bytes,
     event_hash: preparation.event_hash,
-  } as const;
-  await getFirestore().collection("groove_events").doc(preparation.id).set(confirmed);
-  return confirmed;
+  };
+  const store = getFirestore();
+  const evidenceReference = store.collection("groove_evidence").doc(`${preparation.topic_id}-${match.sequence_number}`);
+  const claimReference = store.collection("groove_shout_claims").doc(claimId(preparation.room_id, preparation.account_id));
+  await store.runTransaction(async (firestoreTransaction) => {
+    const existing = await firestoreTransaction.get(claimReference);
+    const current = existing.exists ? existing.data() as ConfirmedShout : null;
+    firestoreTransaction.set(evidenceReference, confirmed, { merge: false });
+    firestoreTransaction.set(store.collection("groove_events").doc(preparation.id), confirmed, { merge: false });
+    if (!current || earlierShout(confirmed, current) === confirmed) firestoreTransaction.set(claimReference, confirmed);
+  });
+  const accepted = (await claimReference.get()).data() as ConfirmedShout;
+  return accepted.prepare_id === preparation.id ? confirmed : { status: "DUPLICATE", reason: "ONE_SHOUT_PER_ROOM", accepted_sequence_number: accepted.sequence_number } as const;
 }
 
 export async function listConfirmedGroove(roomId: string) {
-  const snapshot = await getFirestore()
-    .collection("groove_events")
-    .where("room_id", "==", roomId)
-    .limit(100)
-    .get();
-  return snapshot.docs.map((document) => document.data());
+  const store = getFirestore();
+  const [claims, legacy] = await Promise.all([
+    store.collection("groove_shout_claims").where("room_id", "==", roomId).limit(100).get(),
+    store.collection("groove_events").where("room_id", "==", roomId).limit(100).get(),
+  ]);
+  return foldUniqueShouts([...claims.docs, ...legacy.docs].map((document) => document.data() as ConfirmedShout));
 }

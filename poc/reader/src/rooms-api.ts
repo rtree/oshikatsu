@@ -10,6 +10,7 @@ export type RoomWork = {
 export type Room = {
   id: string;
   name: string;
+  room_type: "MANGA" | "SPECIAL_TEAM";
   action_description: string;
   world_action: string;
   opens_at: string;
@@ -39,6 +40,8 @@ export type ConfirmedGrooveEvent = {
 export type RoomProjection = {
   room: Room;
   groove: ConfirmedGrooveEvent[];
+  ranking: Array<{ rank: number; work_id: string; shout_count: number; tied: boolean }>;
+  confirmed_shout_count: number;
   ballot: { status: string };
   revision: string;
 };
@@ -48,6 +51,7 @@ function isRoom(value: unknown): value is Room {
   const room = value as Partial<Room>;
   return typeof room.id === "string" &&
     typeof room.name === "string" &&
+    (room.room_type === "MANGA" || room.room_type === "SPECIAL_TEAM") &&
     typeof room.manifest_hash === "string" &&
     Array.isArray(room.works) &&
     room.works.every((work) =>

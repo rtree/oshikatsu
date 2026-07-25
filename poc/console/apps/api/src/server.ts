@@ -6,7 +6,7 @@ import { z } from "zod";
 import { requireAdmin } from "./admin-auth.js";
 import { environment, getWorldIdEnvironment } from "./config.js";
 import { ballotPrepareSchema, ballotRequestSchema, createBallotRequest, getBallotStatus, listCapabilities, prepareBallot } from "./ballots.js";
-import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove } from "./groove.js";
+import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove, rankRoomWorks } from "./groove.js";
 import { archiveRoom, createAdminRoom, createRoom, createRoomSchema, getAdminRoom, getRoom, getRoomAction, listActions, listAdminRooms, listRooms, requireRoomAction, retireAction, roomIdSchema } from "./rooms.js";
 
 const app = express();
@@ -102,7 +102,7 @@ function adminError(response: express.Response, error: unknown) {
 
 function operationError(response: express.Response, error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : fallback;
-  if (message === "ROOM_ARCHIVED" || message === "ACTION_RETIRED") {
+  if (message === "ROOM_ARCHIVED" || message === "ACTION_RETIRED" || message === "DUPLICATE_SHOUT") {
     response.status(409).json({ error: message });
     return;
   }
@@ -210,9 +210,12 @@ app.get("/api/projection/rooms/:roomId", async (request, response) => {
       response.status(404).json({ error: "Room not found." });
       return;
     }
+    const groove = await listConfirmedGroove(room.id);
     response.json({
       room,
-      groove: await listConfirmedGroove(room.id),
+      groove,
+      ranking: rankRoomWorks(room.id, room.works.map((work) => work.id), groove),
+      confirmed_shout_count: groove.length,
       ballot: { status: "PENDING", capabilities: await listCapabilities(room.id) },
       revision: new Date().toISOString(),
     });

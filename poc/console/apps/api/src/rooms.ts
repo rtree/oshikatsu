@@ -16,6 +16,7 @@ const workSchema = z.object({
 
 export const createRoomSchema = z.object({
   name: z.string().min(3).max(80),
+  room_type: z.enum(["MANGA", "SPECIAL_TEAM"]).default("MANGA"),
   opens_at: z.string().datetime(),
   deadline: z.string().datetime(),
   topic_id: z.string().regex(/^0\.0\.\d+$/),
@@ -26,6 +27,7 @@ export const createRoomSchema = z.object({
 export type Room = {
   id: string;
   name: string;
+  room_type: "MANGA" | "SPECIAL_TEAM";
   action_description: string;
   world_action: string;
   opens_at: string;
@@ -56,6 +58,7 @@ type RoomAdmin = {
 
 const seedInput: z.infer<typeof createRoomSchema> = {
   name: "Weekly Chapter Drop",
+  room_type: "MANGA",
   opens_at: "2026-07-25T00:00:00.000Z",
   deadline: "2027-07-25T23:59:59.000Z",
   topic_id: "0.0.9745676",
@@ -85,6 +88,7 @@ function canonicalManifest(input: z.infer<typeof createRoomSchema>, id: string) 
     deadline: input.deadline,
     id,
     name: input.name,
+    room_type: input.room_type,
     opens_at: input.opens_at,
     topic_id: input.topic_id,
     v: 1,
@@ -106,6 +110,7 @@ function createRoomDocument(input: z.infer<typeof createRoomSchema>, id: string)
   return {
     id,
     name: input.name,
+    room_type: input.room_type,
     action_description: `Verify humanity for ${input.name}`,
     world_action: getRoomAction(id),
     opens_at: input.opens_at,
@@ -164,7 +169,7 @@ export async function listRooms() {
   return snapshot.docs.flatMap((document, index) => {
     if ((adminSnapshots[index]?.data() as RoomAdmin | undefined)?.state === "ARCHIVED") return [];
     const room = document.data() as Room;
-    return { ...room, phase: roomPhase(room.opens_at, room.deadline) };
+    return { ...room, room_type: room.room_type ?? "MANGA", phase: roomPhase(room.opens_at, room.deadline) };
   }).slice(0, 50);
 }
 
@@ -174,7 +179,7 @@ export async function getRoom(id: string) {
   const snapshot = await getFirestore().collection("rooms").doc(id).get();
   if (!snapshot.exists) return null;
   const room = snapshot.data() as Room;
-  return { ...room, phase: roomPhase(room.opens_at, room.deadline) };
+  return { ...room, room_type: room.room_type ?? "MANGA", phase: roomPhase(room.opens_at, room.deadline) };
 }
 
 export async function listAdminRooms() {
@@ -183,7 +188,7 @@ export async function listAdminRooms() {
   return Promise.all(snapshot.docs.map(async (document) => {
     const room = document.data() as Room;
     const admin = (await getFirestore().collection("room_admin").doc(document.id).get()).data() as RoomAdmin | undefined;
-    return { room: { ...room, phase: roomPhase(room.opens_at, room.deadline) }, admin: admin ?? { state: "ACTIVE" }, actions: getRoomActions(room.id, admin) };
+    return { room: { ...room, room_type: room.room_type ?? "MANGA", phase: roomPhase(room.opens_at, room.deadline) }, admin: admin ?? { state: "ACTIVE" }, actions: getRoomActions(room.id, admin) };
   }));
 }
 
