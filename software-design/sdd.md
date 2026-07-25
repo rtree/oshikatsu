@@ -398,6 +398,46 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 
 Reader App章を画面、遷移、部品、表示copyの正本とする。この章では各画面の内容を再定義せず、全画面へ共通して適用する判断だけを定める。
 
+### Fandom vocabulary
+
+Oshikatsuで使う日本語のファン語と英語UI上の意味を次に固定する。Romajiは日本語を知らないReaderが語を発音し、Vocabularyページや補足表示で原語へ触れるために使う。英語欄は逐語訳ではなく、UI上で意図と操作結果が最も正確に伝わる表現とする。
+
+#### Core vocabulary
+
+| 日本語 | Romaji | 英語 | 解説 |
+| --- | --- | --- | --- |
+| 推し | oshi | `Oshi` / `Favorite` | 特に応援したい作品または人。Oshikatsu固有概念として`Oshi`を使えるが、初出では対象が分かる文脈を添える。一般的な説明では`favorite`を使う。 |
+| 推し活 | oshikatsu | `Oshikatsu` / `supporting your oshi` | 推しを応援し、語り、発見を広げる活動全体。製品名と重なるため、機能名へ機械的に`Oshi Time`とは訳さない。 |
+| 推す | osu | 操作に応じて`React`、`Shout`、`Add to My Top 3`、`Vote` | 日本語では応援行為全般を含むが、英語UIではformal effectを明確にするため一語へまとめない。感情、叫び、ranking候補追加、formal ballotをそれぞれ分ける。 |
+| スタンプ | sutampu | `Reaction` | 作品への感情をemojiとlabelで送る短い表現。ballotを変更しない。英語UIでは`Stamp`より自然な`Reaction`を使う。 |
+| 叫び | sakebi | `Shout` | 読後の熱量を短文で放つ表現。一般的な議論を表す`Comment`とは区別し、ballotを変更しない。 |
+| 推薦 | suisen | `Nomination` | Room開始前に作品を候補集合へ提案すること。作品を薦める一般行為と区別する必要がある場所では`Room Nomination`とする。 |
+| 候補 | kouho | `Nominee` | Nomination Windowを通過し、Roomで比較または投票される作品・人物。 |
+| 投票 | touhyou | `Vote` / `Ballot` | HCSへ記録されるformal intent。操作には`Vote`、記録された内容や状態には`Ballot`を使う。ReactionやShoutをVoteとは呼ばない。 |
+| 盛り上がり | moriagari | `Groove` | Room内のReaction、Shout、参加の勢いをまとめたOshikatsu固有のlive energy。単純な投票数ではない。 |
+| 共鳴 | kyoumei | `Resonance` | Readerの表現が他のReaderへ届き、反応を生んだ度合い。算出根拠を示せる場合だけ指標名として使う。 |
+| 本棚 | hondana | `My Shelf` | Readerが登録した作品と、次に読みたい作品を置くpersonal collection。formal ballotとは独立する。 |
+| 実績 | jisseki | `Badges` / `Achievements` | Room参加や応援の履歴から得る記録。画面上の収集物は`Badges`、制度全体は`Achievements`とする。on-chain tokenである場合だけ`NFT`と表示する。 |
+| 原石発掘 | genseki hakkutsu | `Hidden Gem Scout` | まだ注目が少ない段階で、後にRoom winnerとなる作品を早く推したReaderの実績。 |
+| 継続応援 | keizoku ouen | `Long-Run Supporter` | 複数Roomに継続参加し、作品を応援してきたReaderの実績。 |
+| 投票回数 | touhyou kaisuu | `Rooms Joined` / `Ballots Cast` | 何を数えるかで英語を分ける。Room参加数は`Rooms Joined`、成立したformal ballot数は`Ballots Cast`とする。 |
+
+#### Reaction vocabulary
+
+| 日本語 | Romaji | 英語 | 解説 |
+| --- | --- | --- | --- |
+| 神回 | kamikai | `Peak Chapter` | とびきり完成度が高く、ファンが「今回が最高」と感じたchapter。`Peak fiction`のニュアンスを持つ。 |
+| 泣いた | naita | `Cried My Eyes Out` | 強く感情を揺さぶられて泣いたことを表す。 |
+| 尊い | toutoi | `Too Precious` | 関係性や存在が愛おしく、守りたいほど価値があるというファン表現。単なる`respect`とは訳さない。 |
+| 続き召喚 | tsuzuki shoukan | `Next Chapter Now` | 続きを今すぐ読みたいという強い期待。直訳の`summon the next chapter`よりCTAとして自然な表現を使う。 |
+| 優勝 | yuushou | `Chapter of the Week` | 実際の受賞ではなく、Reader個人にとって今回もっとも刺さったというファン表現。formal rankingのwinnerとは区別する。 |
+| 無事死亡 | buji shibou | `I'm Dead` | 良すぎる、尊すぎる、衝撃が強すぎるという誇張表現。実際の危害を意味しない。 |
+| 溶けた | toketa | `I Melted` | 可愛さ、甘さ、感動で抵抗できなくなった感覚を表す。 |
+| 情緒崩壊 | joucho houkai | `Emotionally Wrecked` | 展開によって感情が大きく乱された状態。 |
+| 情緒噴火 | joucho funka | `I'm Losing It` | 感情が抑えきれず爆発している状態。`Emotionally Wrecked`より外向きで勢いが強い。 |
+
+VocabularyをUIへ表示する場合も、英語labelを操作の主表示とし、日本語とRomajiはtooltip、用語集、補足sheetで提供する。emojiだけで意味を伝えず、Reactionには必ず英語labelとaccessible nameを持たせる。
+
 ### Language
 
 利用者に表示するcopyは英語を正本とし、日本語は設計意図の説明にのみ使う。操作名は結果の違いを曖昧にしない。
