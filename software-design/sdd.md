@@ -20,6 +20,7 @@
 -> 対応するRoomがOshikatsuでオープン。Roomには複数漫画が入っている
 -> 読者達がRoomに集って「推す（＝お互いに感想を述べ合う）」。推す方法は　スタンプ（絵文字のこと。「🔥神回」「😭泣いた」「🥺尊い」「🐉続き召喚」「👑優勝」「💡無事死亡」「🤗溶けた」「🐻‍❄️情緒崩壊」「🌋情緒噴火」など）、叫び（「作者様ありがとうございます!!来週まで生きられない」「神回すぎる!!!!!」「情緒が爆散した」など）。自分の推しや他人の推しやリアルタイムにRoomに反映され、熱狂を作り出す。同じ時間を共有するために、Roomは数時間経過したら封鎖される
 -> さらに、みんなの推しは次の熱狂を作り出すために使われる
+    ・Roomに自分の推したい漫画がなければだれでも一つは追加することができる
     ・漫画リリース後一定時間経つとRoomはSEALされ、その時点で推し数が多い漫画がランキング発表
     ・RoomがSEALされたタイミングで特定の漫画を推した人には実績が付与
         🥇１位達成：Room内で一位になった漫画の特定話を推していた人に付与される
@@ -34,55 +35,29 @@
 良い漫画を布教したい、という誰かの推しが、良い漫画を読みたいと考える人に届く仕組み。
 Web2のコメントは複数投稿可能であったり、投稿がノーコストであるために場が荒れやすくまた、そもそも主催者によって結果が操作され出版社が売りたい漫画がランキング上位になるなどの特徴があったり、投票期間を恣意的にひろげたり縮めたり可能だがこれができないために良質な本物のコメントが集まりやすい場になるはずである。
 
+なお、Roomはだれでも開設できる＆Hackathonのデモ運営上Room開設用のUIから開設されるが、本番においてはHederaのSchedulerサービスで開設される予定である。
+
 ## Hackの観点からみた「Oshikatsu」
 
-> Cryptoを活用したSibil Resistanceな投票システム。WorldID＋HCSの組み合わせによって、投票Windowの間の時刻のみ投票可能＋特定の人物が最後に実施した投票が有効票として扱われる＋一人一票が保証される＋集計が第三者でVerifiableで投票の主催者によって結果が操作されていない保証がある＋投票そのものに微量のコストがかかるためランダム投票など意味のない票を排除できる　などの民主主義に必須の公正な投票をオンラインで行うための基盤が実現
+> Cryptoを活用したSibil Resistanceな匿名投票システム。WorldID＋HCSの組み合わせによって、投票Windowの間の時刻のみ投票可能＋特定の人物が最後に実施した投票が有効票として扱われる＋一人一票が保証される＋人間であることは保証されているが投票そのものは匿名である（Walletのアドレスは現実世界のIdentityではない）＋集計が第三者でVerifiableで投票の主催者によって結果が操作されていない保証がある＋投票そのものに微量のコストがかかるためランダム投票など意味のない票を排除できる＋公開の場所で誰でも投票を開催できだれでも立候補できる　などの民主主義に必須の公正な投票をオンラインで行うための基盤が実現
 
 人間証明から投票成立までは、次の一本の経路に固定する。
 
-```text
-Hedera Wallet接続
-  -> rankingとballot hashを確定
-  -> Room・ballot・Walletに束縛したsignalでWorld ID v4 proofを取得
-  -> World Chainの確定済みhistorical stateで投稿前検証
-  -> Wallet本人が初回ballotをHCSへ直接投稿
-  -> Mirror Nodeから再構成
-  -> 同じhistorical stateで公開再検証
-  -> 最初の有効なnullifierだけにRoom capabilityを付与
-  -> 更新・取消は同じpayerによるHCS latest-write-wins
-  -> SEALで締め切る
+⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️
+
+```
+Hedera Wallet（HashPack）を接続
+    -> 投票するRoom、ranking、締切、Wallet accountからballot hashとWorld signalを生成
+    -> そのsignalに束縛されたWorld ID v4の人間証明を一度だけ取得
+    -> World Chain上の確定済みblockを使い、World公式Verifierでproofが有効か投稿前に確認
+    -> 有効なproofと初回ballotを、Wallet本人がHCSへ直接投稿
+    -> Mirror NodeからHCS messageを取得し、分割messageを完全に再構成
+    -> 投票時に固定したWorld Chainの同じblockとVerifierを使い、第三者もproofを再検証
+    -> 同じRoomで同一nullifierから複数の初回投票がある場合、HCS上で最初に成立した一件だけにRoom capabilityを認める
+    -> capability取得後の投票変更・取消ではWorld proofを再取得せず、同じWalletからHCSへ更新eventを投稿
+    -> 同じcapabilityについて、SEAL前に完了したeventのうちHCS上で最後のものを正式状態とする
+    -> SEALのconsensus timestamp以後の投稿を無効とし、投票結果を確定
 ```
 
-このprotocolは次の三原則を守る。
 
-1. World proofは初回投票で一度だけ要求し、その後の操作権はRoom capabilityとして扱う。
-2. World Chainは人間証明の正当性、HCSは投稿者・順序・締切の正本とする。Manga Groove backendはformal validityを署名しない。
-3. historical stateを取得できない場合は`INVALID`ではなく`UNVERIFIABLE`とし、検証が完了するまで投票成立を確定しない。
-
-初回投票の状態遷移は次のとおりとする。
-
-```text
-DRAFT
-  -> PROOF_ACQUIRED
-  -> PREFLIGHT_VALID
-  -> SUBMITTED
-  -> REASSEMBLED
-  -> VALID | INVALID | UNVERIFIABLE
-  -> CAPABILITY_GRANTED | NULLIFIER_CONFLICT
-```
-
-`VALID`はWorld proofが有効であること、`CAPABILITY_GRANTED`はさらに同一Room内でnullifierの先行有効投票がないことを表す。UI上の「投票済み」は`SUBMITTED`ではなく`CAPABILITY_GRANTED`になった時点で表示する。
-
-
-人間証明から投票成立までの作戦の中心方針は以下
-    ```
-    Wallet・ranking・Roomを束縛したsignalでWorld ID v4 proofを取得
-    allow_legacy_proofs=falseでv4だけを受理
-    World Chainのfinalized blockを複数archive RPCで検証
-    HashPackからユーザーpayerでHCSへ直接投稿
-    Mirror Nodeでchunkを厳密に再構成
-    最初の有効nullifierへRoom capabilityを付与
-    更新・取消は同じpayerによるcompletion sequence基準のLWW
-    authority認証済みSEALで確定
-    ```
-
+⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️⭐️
