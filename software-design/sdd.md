@@ -2,10 +2,7 @@
 # Product design
 
 > 今週の漫画と来週の一話を、検証可能な読者の熱でつなぐ。
-
-この文書はOshikatsuのプロダクト判断に関する正本である。価値仮説、対象者、体験原則、Room lifecycle、trust boundary、投票protocol、reward、検証方法を一つの設計として扱う。
-
-プロダクトの約束はmanifest、event schema、replay rule、UI copy、テストの組として管理する。約束を変更するときは、この組を同じversionで更新する。
+この文書はOshikatsuのプロダクト判断に関する正本である
 
 # Part I: Product Design
 
