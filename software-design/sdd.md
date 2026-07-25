@@ -49,8 +49,9 @@ Hedera Wallet（HashPack）を接続
   -> Room・コメントhash・Hedera Walletを束縛したballot hashとWorld signalを生成
   -> そのRoomへの初回投票時に限り、World ID v4による人間証明を取得
    -> World Chainの鮮度条件を満たすanchor blockと公式WorldIDVerifierを使い、proofを投稿前に検証
-  -> proofが有効な場合、Wallet本人がraw World proofを含む初回ballotをHCSへ直接投稿
-  -> Mirror NodeからHCS messageを取得し、分割されたmessageを完全に再構成
+    -> proofが有効な場合、raw World proofを公開のcontent-addressed evidence storageへ保存
+    -> Wallet本人がproof digestとimmutable evidence referenceを含む900-byte以下の初回ballotをHCSへ直接投稿
+    -> Mirror Nodeからsingle-message HCS eventを取得し、exact bytesを検証
    -> anchor blockがWorld Chainでfinalizedになるまで待つ
   -> 投票時に固定したWorld Chainの同じhistorical stateを使い、第三者もWorld proofを再検証
   -> 同じRoom・同じWorld nullifierについて、HCS上で最初に成立した初回ballotだけにRoom capabilityを付与
@@ -99,8 +100,8 @@ DRAFT
   -> SUBMITTED
      Wallet本人が初回ballotをHCSへ送信済み
 
-  -> REASSEMBLED
-     Mirror NodeからHCS messageを完全に再構成済み
+  -> MIRROR_CONFIRMED
+      Mirror Nodeからsingle-message exact bytes、payer、consensus metadataを確認済み
 
   -> WAITING_WORLD_FINALITY
      投票時に固定したWorld anchor blockがfinalizedになるまで待機中
@@ -133,15 +134,42 @@ Room manifestは少なくとも`roomId`、`opensAt`、`deadline`、Nominee一覧
 
 Nomineeの追加は`opensAt`より前にHCS consensusへ到達したeventだけを有効とする。`opensAt`以後のNominee追加はHCSに記録されても公開foldで無効とする。これにより、投票中にrankingの候補集合が変化しない。
 
-初回投票、更新、取消は、logical eventを構成する全chunkが揃い、その最後のchunkが次を満たす場合だけWindow内と判定する。
+初回投票、更新、取消はsingle-message HCS eventに限定し、そのmessageが次を満たす場合だけWindow内と判定する。
 
 ```text
 manifest.opensAt
-   <= logical event completion consensus timestamp
+    <= event consensus timestamp
    <= manifest.deadline
 ```
 
-chunkが一つでも欠けているevent、または最後のchunkが`deadline`より後にHCS consensusへ到達したeventは無効とする。締切はSEALの投稿時刻ではなくmanifestの`deadline`で決まる。
+chunked eventはprotocol違反として無効とする。eventが`deadline`より後にHCS consensusへ到達した場合も無効とする。締切はSEALの投稿時刻ではなくmanifestの`deadline`で決まる。
+
+## HCS single-message payload budget
+
+Oshikatsuのwallet署名eventは、HCSのnetwork上限1,024 bytesに対してapplication上限を900 UTF-8 bytesとする。残り124 bytesは将来のschema拡張やencoding差異に使わず、安全余裕として予約する。
+
+- byte数はJavaScript string lengthではなく`TextEncoder`相当のUTF-8 bytesで測る。
+- 900 bytesを超えるeventはwalletを開く前に拒否する。
+- `TopicMessageSubmitTransaction`は`setMaxChunks(1)`とし、chunk groupをformal eventとして送らない。
+- canonical encodingとfield上限はprotocol versionで固定する。
+- Reactionは定義済みstamp IDだけを送り、表示labelやassetをpayloadへ重複格納しない。
+- Shout本文はUnicode code pointで最大200文字、かつ本文単体で最大600 UTF-8 bytesとする。
+- formal BallotはShout本文を含めず、ranking、World proof digest、immutable evidence reference、World anchorだけを持つ。
+- raw World proof、画像、AI output、表示用metadataはHCSへ直接格納しない。
+
+200文字がすべて3-byteの日本語でも本文は600 bytesである。Room ID、event ID、stamp IDを含むJSON envelopeのworst-case fixtureは900 bytes以下でなければならない。絵文字や結合文字によりUTF-8上限を超える場合は、200文字以下でも入力を拒否する。
+
+World evidence artifactはpublicかつimmutableに取得でき、HCS eventに記録したdigestとbyte-for-byte一致しなければならない。content-addressed URI自体がdigestを含む場合も、protocol fieldとして明示的なSHA-256 digestを保持する。
+
+artifactはversioned allowlist schemaをcanonical encodingしたbytesに限定する。World proofの公開検証に必要なfieldだけを含め、transport metadata、device情報、access token、header、画像、生体情報、World username、表示用metadataを含めない。未知fieldを自動公開せず、schema versionの更新としてreviewする。
+
+artifactのpublisherはformal validityを決めない。HashPackへHCS署名を要求する前に、clientはHCSへ記録予定のreferenceからartifactを匿名で再取得し、canonical schema、SHA-256 digest、Room action、signal、ranking、anchor、接続中Hedera accountへのbindingを検証する。公開済みartifactと一致しないballotはwalletへ渡さない。wallet拒否後に未参照artifactが残ることは許容する。
+
+第三者verifierはHCSに記録されたreferenceだけをauthorityとして使用し、backendが後から提示する代替URIや検証結果を信頼しない。fresh processはartifactを取得し、digestとbindingを再計算し、Mirror payerを照合し、固定World blockでhistorical verificationを再実行する。Oshikatsu backendの`VALID`応答だけではcapabilityを付与しない。
+
+artifactを取得できない、複数resolverが不一致、または一致するcommitted bytesを確定できない場合は`UNVERIFIABLE`とする。取得先が異なるbytesを返した事実だけでWorld proofを`INVALID`にしない。HCSがcommitしたcanonical artifactを取得でき、そのartifact自体のschema、binding、proofまたはhistorical verificationが不成立な場合だけ`INVALID`とする。
+
+digestはintegrityを保証するがavailabilityを保証しない。保存先、pinning、retention、独立replica、verification horizonはIssueで選定し、実artifactをfresh processから取得できるまで初回ballot sliceを完了扱いにしない。World/Orb credential issuerと固定World verifier stateへの信頼は従来どおりprotocol trust boundaryに残り、historical replayはその判断を再現するものであってissuer trustを除去するものではない。
 
 ## Room固有のWorld action
 
@@ -160,8 +188,8 @@ historical `eth_call`による再検証は、初回ballotごとに固定したWo
 
 ```text
 World block numberから再取得したblock hash == ballotに保存したblock hash
-World block timestamp <= logical ballot completion consensus timestamp
-logical ballot completion consensus timestamp - World block timestamp <= 300 seconds
+World block timestamp <= ballot event consensus timestamp
+ballot event consensus timestamp - World block timestamp <= 300 seconds
 capability付与前に、同じWorld block hashがfinalizedになる
 ```
 
@@ -183,7 +211,7 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
 
 したがって「投票Windowの間だけ投稿可能」ではなく、正確なformal ruleは次である。
 
-> 投票Window内にlogical eventの全chunkがHCS consensusへ到達したeventだけが有効である。
+> 投票Window内にsingle-message eventがHCS consensusへ到達した場合だけ有効である。chunked eventはprotocol違反として無効とする。
 
 
 # Part II: 画面定義
@@ -356,7 +384,7 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
     - 内部にある部品
         - Proof acquired：World proof取得を示す
         - HCS submitted：Wallet署名済み投稿を示す
-        - Message reassembled：logical event完成を示す
+        - Message confirmed：Mirror Nodeでexact bytesとpayerを確認済みであることを示す
         - World finality：anchor block finalityを示す
         - Capability granted：Room capability成立を示す
 
@@ -498,7 +526,7 @@ Part IIをproduct behaviorの正本とし、Part IIIは実装順、外部依存�
 fixed Room manifest
     -> production World ID v4 Proof of Human
     -> HashPack-signed initial ballot on Hedera testnet
-    -> Mirror Node chunk reconstruction
+    -> Mirror Node exact-byte confirmation
     -> finalized historical World verification
     -> Room capability
     -> update / withdraw / re-update
@@ -548,15 +576,17 @@ productionの`proofOfHuman`、`allow_legacy_proofs=false`で次を実証する�
 
 **STOP:** 同じRoomでfreshかつ独立した利用可能nullifierを複数生成できる。v4 nullifierを「human + RP + actionの安定ID」と仮定せず、sessionまたは別のcapability設計を検討する。
 
-### Gate 0-C: HashPack wallet-signed chunking
+### Gate 0-C: HashPack wallet-signed single-message HCS event
 
-HashPack実機でHedera testnetのopen-submit topicへ、1,023、1,024、1,025 bytesと実際のproof envelope相当サイズを投稿する。
+HashPack実機でHedera testnetのopen-submit topicへ、実際のReaction、Shout、Ballot envelopeを各1 transactionとして投稿する。application payloadは900 UTF-8 bytes以下、SDKは`setMaxChunks(1)`とする。
 
-**確認事項:** approval回数、全chunkのpayer、transaction ID、`initial_transaction_id`、chunk number/total、sequence、consensus timestamp、途中拒否時の状態。
+**確認事項:** approval回数、payer、transaction ID、sequence、consensus timestamp、exact message bytes、Mirror取得前のwallet成功表示をformal successと誤認しないこと、900/901-byte境界でwalletを開く前にそれぞれ許可/拒否すること。
 
-**GO:** 全chunkを同一accountが署名・支払いし、Mirror Nodeからlogical eventとcompletion timestampを再構成できる。
+**GO:** connected HashPack accountが1つの900-byte以下eventを署名・支払いし、Mirror Nodeから同じpayer、exact bytes、consensus timestampを取得できる。901 bytes以上とchunked transactionはpreflightで拒否される。
 
-**STOP:** 一部chunkしか署名できない、partial failureを識別できない、またはproof envelopeが実用上投稿できない。application-level chunking、payload縮小、commitment方式のいずれかへprotocolを変更する。
+**STOP:** 実payloadが900 bytesへ収まらない、HashPackがsingle-message Topic Submitを実行できない、またはMirror evidenceからexact bytesとpayerを確認できない。
+
+1,025 bytes以上のwallet chunk groupは現protocolのacceptance対象外とし、将来研究Issueとしてopenに保つ。
 
 ### Gate 0-D: World historical replay
 
@@ -582,8 +612,8 @@ apps/api     apps/cli     apps/web
 | --- | --- |
 | `@oshikatsu/protocol` | versioned schema、canonical JSON、hash、action、signal、wire type、golden vector |
 | `@oshikatsu/domain` | Room phase、event validation、capability policy、latest intent、ranking、reason code |
-| `@oshikatsu/hedera` | topic作成、1,024-byte chunk、transaction構築、operatorまたはwallet submission |
-| `@oshikatsu/mirror` | REST pagination、raw schema validation、sequence gap、chunk再構成、payerとcompletion metadata |
+| `@oshikatsu/hedera` | 900-byte application上限、single-message transaction構築、operatorまたはwallet submission |
+| `@oshikatsu/mirror` | REST pagination、raw schema validation、sequence gap、chunked event拒否、payerとconsensus metadata |
 | `@oshikatsu/world-id` | manifest由来action、RP signature、IDKit request DTO、raw v4 result parse |
 | `@oshikatsu/world-chain` | multi-RPC block照合、historical `eth_call`、finality、proxy/dependency snapshot |
 | `@oshikatsu/projection` | public sourceからdecode、verify、fold、result/replay report生成 |
@@ -599,7 +629,7 @@ protocol packageへHedera SDK、World SDK、Express、React、Firestoreの型を
 ### M0: Feasibility gates
 
 - Gate 0-Aから0-Dを実行する。
-- World action、signal、nullifier、anchor、wallet chunkingについて`GO`、`GO WITH CONSTRAINT`、`STOP`、`BLOCKED`を記録する。
+- World action、signal、nullifier、anchor、wallet single-message submissionについて`GO`、`GO WITH CONSTRAINT`、`STOP`、`BLOCKED`を記録する。
 - `STOP`が1件でもあれば下流実装を始めず、protocol decisionを更新する。
 
 **Evidence:** sanitized IDKit result、RP context、World call input/result、Hedera transaction IDs、raw Mirror responses、decision report。
@@ -616,11 +646,11 @@ protocol packageへHedera SDK、World SDK、Express、React、Firestoreの型を
 ### M2: Hedera testnet transport
 
 - 公式HCS sampleからopen-submit topic作成とmessage submitを通す。
-- Mirror RESTをsequence昇順でpaginateし、raw chunkを取得する。
-- `chunk_info.initial_transaction_id`、payer、number、totalを検証してlogical eventを再構成する。
-- missing、duplicate、conflicting、interleaved chunk fixtureを拒否する。
+- Mirror RESTをsequence昇順でpaginateし、raw messageを取得する。
+- payer、topic、sequence、consensus timestamp、exact bytesを検証する。
+- `chunk_info.total > 1`、oversize、duplicate event fixtureを拒否する。
 
-**Gate:** 新しいprocessがAPI memoryを使わず、Mirror Nodeだけから同じmanifest bytes、payer、completion sequence/timestampを再構成する。
+**Gate:** 新しいprocessがAPI memoryを使わず、Mirror Nodeだけから同じmanifest bytes、payer、sequence、consensus timestampを再構成する。
 
 ### M3: Browser approval handoff
 
@@ -642,8 +672,9 @@ protocol packageへHedera SDK、World SDK、Express、React、Firestoreの型を
 ### M5: Initial ballot capability slice
 
 - fixed candidate setでinitial ballot envelopeを作る。
-- HashPackでraw proof込みmessageを投稿する。
-- `SUBMITTED -> REASSEMBLED -> WAITING_WORLD_FINALITY -> VALID -> CAPABILITY_GRANTED`を進める。
+- versioned canonical World evidence artifactを公開し、clientがcommitted referenceから再取得してdigestとballot bindingを確認する。
+- HashPackでproof digest、immutable evidence reference、World anchorを含む900-byte以下のinitial ballotを投稿する。
+- `SUBMITTED -> MIRROR_CONFIRMED -> WAITING_WORLD_FINALITY -> VALID -> CAPABILITY_GRANTED`を進める。
 - Gate 0-Bで確定したuniqueness semanticsに基づき競合を判定する。
 
 **Gate:** 1つのreal Room、1人のreal human、1つのHashPack accountについて、public evidenceだけで`CAPABILITY_GRANTED`を説明できる。
@@ -651,8 +682,8 @@ protocol packageへHedera SDK、World SDK、Express、React、Firestoreの型を
 ### M6: Ballot lifecycle and deterministic result
 
 - update、withdraw、再updateをHCSへ投稿する。
-- deadline以前に完了した最大completion sequenceをcurrent intentにする。
-- deadlineを跨ぐchunk group、wrong payer、duplicate eventを拒否する。
+- deadline以前にconsensusへ到達した最大sequenceのsingle-message eventをcurrent intentにする。
+- deadline後のsingle-message event、wrong payer、duplicate event、chunked eventを拒否する。
 - fixed point ruleでresult hashを計算し、authority SEALへcommitする。
 
 **Gate:** API projectionとfresh CLI replayが同じcurrent intent、ranking、result hashを生成する。
@@ -740,13 +771,14 @@ SDDへ作業statusを書かない。Issueへprotocolの正本を複製しない�
 
 - Gate 0-A〜0-Dがすべて`GO`または明示された`GO WITH CONSTRAINT`である。
 - Orb-backed World ID v4 production proofを実機で取得している。
-- raw proofを含むinitial ballotをHashPackからHedera testnetへ直接投稿している。
-- Mirror Nodeから全chunk、payer、sequence、completion timestampを再構成している。
+- proof digestとimmutable evidence referenceを含む900-byte以下のinitial ballotをHashPackからHedera testnetへ直接投稿している。
+- public evidence storageからraw proofを取得し、HCS記録digestと一致することを確認している。
+- Mirror Nodeからsingle-message exact bytes、payer、sequence、consensus timestampを取得している。
 - 同じWorld blockでhistorical verifier callをfinality後に再実行している。
 - initial ballotがpublic evidenceから`CAPABILITY_GRANTED`へ到達している。
 - update、withdraw、再update、deadline跨ぎをreal HCS eventで確認している。
 - fresh processによるpublic replayがBackendと同じresult hashを生成している。
-- provider停止、World App拒否、HashPack拒否、partial chunk、`INVALID`、`UNVERIFIABLE`を観測している。
+- provider停止、evidence取得不能、World App拒否、HashPack拒否、oversize preflight拒否、chunked event拒否、`INVALID`、`UNVERIFIABLE`を観測している。
 - testnet artifactと第三者向けverification reportを保存している。
 
 # Part IV: UI Design Handoff

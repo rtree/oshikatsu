@@ -14,6 +14,7 @@
     "dev:api": "npm run dev --workspace @oshikatsu/api",
     "build": "npm run build --workspaces --if-present",
     "check": "npm run check --workspaces --if-present",
+    "check:hcs-envelope": "node scripts/check-hcs-envelope-budget.mjs",
     "spike:hcs-boundary": "node scripts/hcs-boundary-spike.mjs",
     "security:check": "node scripts/check-ai-boundary.mjs",
     "test": "npm run test --workspaces --if-present"
