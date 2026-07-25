@@ -544,6 +544,22 @@
         "/^npm --prefix /Users/araki/operations/oshikatsu/poc/reader audit --omit=dev --json \\| node -e 'let s=\"\";process\\.stdin\\.on\\(\"data\",d=>s\\+=d\\)\\.on\\(\"end\",\\(\\)=>console\\.log\\(\"reader-vulnerabilities=\"\\+JSON\\.parse\\(s\\)\\.metadata\\.vulnerabilities\\.total\\)\\)'$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^npm --prefix /Users/araki/operations/oshikatsu/poc/reader run dev -- --host 127\\.0\\.0\\.1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^magick identify /Users/araki/operations/oshikatsu/imggen/image-1784954689187\\.png /Users/araki/operations/oshikatsu/imggen/image-1784954468846\\.png /Users/araki/operations/oshikatsu/imggen/image-1784954781042\\.png$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm --prefix /Users/araki/operations/oshikatsu/poc/reader install lucide-react@0\\.468\\.0$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^mkdir -p /Users/araki/operations/oshikatsu/poc/reader/public/assets && magick /Users/araki/operations/oshikatsu/imggen/image-1784954689187\\.png -crop 800x650\\+0\\+0 \\+repage -strip -quality 88 /Users/araki/operations/oshikatsu/poc/reader/public/assets/level-up-hero\\.webp && magick /Users/araki/operations/oshikatsu/imggen/image-1784954468846\\.png -crop 350x420\\+6\\+130 \\+repage -strip -quality 86 /Users/araki/operations/oshikatsu/poc/reader/public/assets/lineup-level-up\\.webp && magick /Users/araki/operations/oshikatsu/imggen/image-1784954468846\\.png -crop 350x420\\+368\\+130 \\+repage -strip -quality 86 /Users/araki/operations/oshikatsu/poc/reader/public/assets/lineup-cadet\\.webp && magick /Users/araki/operations/oshikatsu/imggen/image-1784954468846\\.png -crop 350x420\\+6\\+570 \\+repage -strip -quality 86 /Users/araki/operations/oshikatsu/poc/reader/public/assets/lineup-divine\\.webp && magick /Users/araki/operations/oshikatsu/imggen/image-1784954468846\\.png -crop 350x420\\+368\\+570 \\+repage -strip -quality 86 /Users/araki/operations/oshikatsu/poc/reader/public/assets/lineup-reader\\.webp && magick montage /Users/araki/operations/oshikatsu/poc/reader/public/assets/\\*\\.webp -thumbnail 220x220 -tile 5x -geometry \\+8\\+8 /tmp/oshikatsu-reader-assets\\.jpg$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
