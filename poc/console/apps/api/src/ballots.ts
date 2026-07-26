@@ -32,6 +32,12 @@ export const ballotV2ArtifactPrepareSchema = z.object({
   artifact_reference: z.string().url().max(180),
 }).strict();
 
+export const ballotV2ManualPrepareSchema = ballotV2ArtifactPrepareSchema.extend({
+  room_id: roomIdSchema,
+  account_id: accountIdSchema,
+  nominee_ids: z.tuple([nomineeIdSchema, nomineeIdSchema, nomineeIdSchema]),
+}).strict();
+
 const contextSchema = z.object({
   room_id: roomIdSchema, manifest_hash: z.string().regex(/^[0-9a-f]{64}$/), account_id: accountIdSchema,
   nominee_ids: z.tuple([nomineeIdSchema, nomineeIdSchema, nomineeIdSchema]), signal: z.string().min(1),
@@ -96,7 +102,7 @@ export async function prepareBallot(input: z.infer<typeof ballotPrepareSchema>) 
   return preparation;
 }
 
-function assertCommitFixedGitHubReference(reference: string) {
+export function assertCommitFixedGitHubReference(reference: string) {
   const url = new URL(reference);
   const match = /^\/rtree\/oshikatsu\/([0-9a-f]{40})\/a\/([0-9a-f]{64})\.json$/.exec(url.pathname);
   if (url.protocol !== "https:" || url.hostname !== "raw.githubusercontent.com" || !match || url.search || url.hash) {
@@ -105,7 +111,9 @@ function assertCommitFixedGitHubReference(reference: string) {
   return { commit: match[1], pathHash: match[2] };
 }
 
-export async function prepareBallotV2FromArtifact(input: z.infer<typeof ballotV2ArtifactPrepareSchema>) {
+export async function prepareBallotV2FromArtifact(
+  input: z.infer<typeof ballotV2ArtifactPrepareSchema> | z.infer<typeof ballotV2ManualPrepareSchema>,
+) {
   const reference = assertCommitFixedGitHubReference(input.artifact_reference);
   if (reference.pathHash !== input.artifact_sha256) throw new Error("Artifact path hash mismatch.");
   const response = await fetch(input.artifact_reference, { headers: { Accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(15_000) });
@@ -116,6 +124,11 @@ export async function prepareBallotV2FromArtifact(input: z.infer<typeof ballotV2
   if (bytes.length === 0 || bytes.length > 64 * 1024) throw new Error("Artifact is too large.");
   if (worldArtifactSha256(bytes) !== input.artifact_sha256) throw new Error("Artifact digest mismatch.");
   const artifact = decodeWorldArtifact(bytes);
+  if ("room_id" in input && (
+    artifact.room_id !== input.room_id ||
+    artifact.account_id !== input.account_id ||
+    artifact.nominee_ids.some((nomineeId, index) => nomineeId !== input.nominee_ids[index])
+  )) throw new Error("Artifact selection binding mismatch.");
   if (artifact.proof.responses[0].signal_hash.toLowerCase() !== hashSignal(artifact.signal).toLowerCase()) throw new Error("Artifact signal hash mismatch.");
   const room = await getRoom(artifact.room_id);
   if (!room) throw new Error("Room not found.");

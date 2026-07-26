@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isConsensusWithinPreparation, rankRoomWorks, type ConfirmedShout } from "../src/groove.js";
+import { demoWorldGateAllows, isConsensusWithinPreparation, rankRoomWorks, type ConfirmedShout } from "../src/groove.js";
 
 function shout(overrides: Partial<ConfirmedShout>): ConfirmedShout {
   return {
@@ -67,4 +67,14 @@ test("preparation expiry limits consensus time rather than delayed Mirror observ
   assert.equal(isConsensusWithinPreparation(preparation, "1785035400.000000000"), true);
   assert.equal(isConsensusWithinPreparation(preparation, "1785035400.000000001"), false);
   assert.equal(isConsensusWithinPreparation(preparation, "not-a-timestamp"), false);
+});
+
+test("DEMO first Shout requires a Room, manifest, and payer-bound World grant", () => {
+  const input = { demo_room: true, confirmed_claim: false, room_id: "room-a", manifest_hash: "a".repeat(64), account_id: "0.0.1" };
+  assert.equal(demoWorldGateAllows(input), false);
+  assert.equal(demoWorldGateAllows({ ...input, demo_room: false }), true);
+  assert.equal(demoWorldGateAllows({ ...input, confirmed_claim: true }), true);
+  assert.equal(demoWorldGateAllows({ ...input, grant: { room_id: "room-a", manifest_hash: "a".repeat(64), account_id: "0.0.1" } }), true);
+  assert.equal(demoWorldGateAllows({ ...input, grant: { room_id: "room-a", manifest_hash: "b".repeat(64), account_id: "0.0.1" } }), false);
+  assert.equal(demoWorldGateAllows({ ...input, grant: { room_id: "room-a", manifest_hash: "a".repeat(64), account_id: "0.0.2" } }), false);
 });

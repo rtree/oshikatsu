@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
+import { IDKitRequestWidget, proofOfHuman, type IDKitResult } from "@worldcoin/idkit";
 import {
   ArrowLeft,
   BookOpen,
@@ -19,6 +20,8 @@ import {
 } from "lucide-react";
 import { archiveDemoRoom, createDemoRoom, fetchDemoRooms, fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type Room, type RoomProjection, type RoomWork } from "./rooms-api";
 import { GrooveConfirmationTimeoutError, prepareGroove, waitForGrooveConfirmation, type GrooveStatus } from "./groove-api";
+import { requireHashPackAccount, submitPreparedGroove } from "./hedera-wallet";
+import { requestGrooveWorldProof, verifyGrooveWorldProof, type GrooveWorldRequest } from "./world-api";
 
 type View = "home" | "room" | "rankings" | "shelf" | "profile";
 
@@ -147,6 +150,8 @@ export function App() {
   const [grooveError, setGrooveError] = useState<string | null>(null);
   const [grooveEvidence, setGrooveEvidence] = useState<Extract<GrooveStatus, { status: "CONFIRMED" }> | null>(null);
   const [pendingGrooveConfirmation, setPendingGrooveConfirmation] = useState<PendingGrooveConfirmation | null>(null);
+  const [worldRequest, setWorldRequest] = useState<GrooveWorldRequest | null>(null);
+  const [worldOpen, setWorldOpen] = useState(false);
   const [shelfItems, setShelfItems] = useState<ShelfItem[]>(loadShelf);
   const rooms = roomsState.status === "ready" ? roomsState.rooms : [];
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
@@ -248,7 +253,6 @@ export function App() {
     setGrooveEvidence(null);
     try {
       setGrooveState("connecting");
-      const { requireHashPackAccount, submitPreparedGroove } = await import("./hedera-wallet");
       const account = await requireHashPackAccount();
       setGrooveState("preparing");
       const preparation = await prepareGroove({
@@ -265,9 +269,32 @@ export function App() {
       await confirmSubmittedGroove(pending);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Shout submission failed.";
+      if (message === "WORLD_PROOF_REQUIRED" && selectedRoom) {
+        try {
+          const account = await requireHashPackAccount();
+          setWorldRequest(await requestGrooveWorldProof(selectedRoom.id, account.accountId));
+          setWorldOpen(true);
+          setGrooveError("Your first Shout in this DEMO Room needs one World human proof.");
+          setGrooveState("idle");
+          return;
+        } catch (worldError) {
+          setGrooveError(worldError instanceof Error ? worldError.message : "World proof request failed.");
+          setGrooveState("idle");
+          return;
+        }
+      }
       setGrooveError(message);
       setGrooveState("idle");
     }
+  }
+
+  async function verifyFirstShoutHuman(proof: IDKitResult) {
+    if (!worldRequest) throw new Error("World proof request is missing.");
+    await verifyGrooveWorldProof(worldRequest, proof);
+    setWorldOpen(false);
+    setWorldRequest(null);
+    setGrooveError(null);
+    void submitGroove();
   }
 
   return (
@@ -307,6 +334,26 @@ export function App() {
           retryConfirmation={pendingGrooveConfirmation !== null}
         />
       )}
+      {worldRequest && <IDKitRequestWidget
+        key={worldRequest.context_token}
+        open={worldOpen}
+        onOpenChange={(open) => setWorldOpen(open)}
+        app_id={worldRequest.app_id}
+        action={worldRequest.action}
+        action_description={worldRequest.action_description}
+        rp_context={worldRequest.rp_context}
+        allow_legacy_proofs={false}
+        environment="production"
+        polling={{ interval: 1_000, timeout: 180_000 }}
+        preset={proofOfHuman({ signal: worldRequest.signal })}
+        handleVerify={verifyFirstShoutHuman}
+        onSuccess={() => undefined}
+        onError={(code) => {
+          setGrooveError(`World ID: ${code}`);
+          setWorldOpen(false);
+          setWorldRequest(null);
+        }}
+      />}
     </div>
   );
 }
@@ -438,7 +485,7 @@ function GrooveEvidence({ event }: { event: ConfirmedGrooveEvent }) {
     message = {};
   }
   const reaction = reactions.find((item) => item.id === message.s);
-  return <p><span>Sequence #{event.sequence_number} · {event.payer_account_id} · {event.message_bytes} bytes</span><strong>{reaction?.label ?? "Confirmed reaction"}</strong>{message.c && <> · {message.c}</>}</p>;
+  return <p><span>Sequence #{event.sequence_number} · {event.payer_account_id} · {event.message_bytes} bytes</span><strong>{reaction && <img src={reaction.icon} alt="" />}{reaction?.label ?? "Confirmed reaction"}</strong>{message.c && <> · {message.c}</>}</p>;
 }
 
 type GrooveDialogProps = {

@@ -27,6 +27,7 @@ type WorldIdRequest = {
 type Room = {
   id: string;
   name: string;
+  acceptance_run_id?: string;
   works?: Array<{ id: string }>;
 };
 
@@ -55,6 +56,9 @@ function downloadJson(filename: string, value: unknown) {
 }
 
 export function App() {
+  const searchParams = new URLSearchParams(window.location.search);
+  const ballotV2Mode = searchParams.get("ballot") === "v2";
+  const worldCaptureMode = searchParams.get("capture") === "world" || ballotV2Mode;
   const [request, setRequest] = useState<WorldIdRequest | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -68,16 +72,22 @@ export function App() {
   const [nomineeIds, setNomineeIds] = useState("");
   const [walletEvidence, setWalletEvidence] = useState<WalletEvidence | null>(null);
   const [walletStatus, setWalletStatus] = useState("HashPack未接続");
-  const [ballotPrepareId, setBallotPrepareId] = useState("");
+  const [artifactSha256, setArtifactSha256] = useState("");
+  const [artifactReference, setArtifactReference] = useState("");
+  const [ballotPreparation, setBallotPreparation] = useState<PreparedBallot | null>(null);
   const [ballotReceipt, setBallotReceipt] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     void fetch("/api/rooms")
       .then((response) => response.json())
       .then(({ rooms: availableRooms }: { rooms: Room[] }) => {
-        setRooms(availableRooms);
-        setRoomId(availableRooms[0]?.id ?? "");
-        setNomineeIds(availableRooms[0]?.works?.slice(0, 3).map((work) => work.id).join(",") ?? "");
+        const selectableRooms = ballotV2Mode
+          ? availableRooms.filter((room) => room.acceptance_run_id === "reader-demo")
+          : availableRooms;
+        setRooms(selectableRooms);
+        const initialRoom = selectableRooms[0];
+        setRoomId(initialRoom?.id ?? "");
+        setNomineeIds(initialRoom?.works?.slice(0, 3).map((work) => work.id).join(",") ?? "");
       })
       .catch(() => setError("Room一覧を取得できませんでした。"));
   }, []);
@@ -134,7 +144,7 @@ export function App() {
       roomId: request?.room_id ?? "unknown",
       signalMatches: verification.signal_matches === true,
     });
-    if (new URLSearchParams(window.location.search).get("capture") === "world" && request) {
+    if (worldCaptureMode && request) {
       const nominees = nomineeIds.split(",").map((value) => value.trim()).filter(Boolean);
       if (!/^0\.0\.\d+$/.test(accountId) || nominees.length !== 3 || new Set(nominees).size !== 3) {
         throw new Error("Capture requires one Hedera account and three distinct nominee IDs.");
@@ -181,17 +191,34 @@ export function App() {
 
   async function sendBallotV2() {
     setError(null);
+    setBallotPreparation(null);
     setBallotReceipt(null);
-    setWalletStatus("Ballot v2 preparationを取得中");
+    setWalletStatus("公開済みartifactを検証してBallot v2を準備中");
     try {
-      const preparationResponse = await fetch(`/api/ballots/preparations/${encodeURIComponent(ballotPrepareId)}`);
+      const nominees = nomineeIds.split(",").map((value) => value.trim()).filter(Boolean);
+      if (!roomId || !/^0\.0\.\d+$/.test(accountId) || nominees.length !== 3 || new Set(nominees).size !== 3) {
+        throw new Error("Select one DEMO Room, one expected payer, and three distinct ordered nominees.");
+      }
+      const preparationResponse = await fetch("/api/ballots/v2/prepare-from-artifact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          artifact_sha256: artifactSha256,
+          artifact_reference: artifactReference,
+          room_id: roomId,
+          account_id: accountId,
+          nominee_ids: nominees,
+        }),
+      });
       const preparationBody = await preparationResponse.json() as { preparation?: PreparedBallot; error?: string };
-      if (!preparationResponse.ok || !preparationBody.preparation) throw new Error(preparationBody.error ?? "Ballot preparation could not be loaded.");
+      if (!preparationResponse.ok || !preparationBody.preparation) throw new Error(preparationBody.error ?? "Ballot preparation failed.");
+      const preparation = preparationBody.preparation;
+      setBallotPreparation(preparation);
       setWalletStatus("HashPackでBallot v2投稿を承認してください");
-      const transactionId = await submitPreparedBallot(preparationBody.preparation);
+      const transactionId = await submitPreparedBallot(preparation);
       setWalletStatus("Mirror確認中。まだ票には数えません");
       for (let attempt = 0; attempt < 40; attempt += 1) {
-        const statusResponse = await fetch(`/api/ballots/status/${encodeURIComponent(transactionId)}?prepare_id=${encodeURIComponent(ballotPrepareId)}`);
+        const statusResponse = await fetch(`/api/ballots/status/${encodeURIComponent(transactionId)}?prepare_id=${encodeURIComponent(preparation.id)}`);
         const status = await statusResponse.json() as Record<string, unknown> & { status?: string; error?: string };
         if (!statusResponse.ok) throw new Error(status.error ?? "Ballot status failed.");
         if (status.status === "RECORDED_UNVERIFIED") {
@@ -228,7 +255,7 @@ export function App() {
             ))}
           </select>
         </label>
-        {new URLSearchParams(window.location.search).get("capture") === "world" && <div className="capture-fields"><label className="room-field"><span>Expected Hedera account</span><input value={accountId} onChange={(event) => setAccountId(event.target.value)} /></label><label className="room-field"><span>Ordered nominee IDs</span><input value={nomineeIds} onChange={(event) => setNomineeIds(event.target.value)} placeholder="first,second,third" /></label><p className="message">Before scanning a new QR, close any previous Completed or Failed screen in World App. After successful Portal verification, the raw proof and exact binding download to this device only.</p></div>}
+        {worldCaptureMode && <div className="capture-fields"><label className="room-field"><span>Expected Hedera account</span><input value={accountId} onChange={(event) => setAccountId(event.target.value)} /></label><label className="room-field"><span>Ordered nominee IDs</span><input value={nomineeIds} onChange={(event) => setNomineeIds(event.target.value)} placeholder="first,second,third" /></label><p className="message">Before scanning a new QR, close any previous Completed or Failed screen in World App. After successful Portal verification, the raw proof and exact binding download to this device only.</p></div>}
         <button type="button" onClick={startProof} disabled={!roomId || isLoading || isOpen}>
           {isLoading ? "準備中..." : "World IDで証明"}
         </button>
@@ -301,7 +328,7 @@ export function App() {
           </dl>
         )}
       </section>
-      {new URLSearchParams(window.location.search).get("ballot") === "v2" && <section className="wallet-section" aria-labelledby="ballot-v2-heading"><h2 id="ballot-v2-heading">Ballot v2 optimistic receipt</h2><p className="lede">Records the artifact-bound Ballot on Hedera first. It remains uncounted until later historical verification.</p><label className="room-field"><span>Preparation ID</span><input value={ballotPrepareId} onChange={(event) => setBallotPrepareId(event.target.value)} placeholder="ballot-..." /></label><button type="button" onClick={() => void sendBallotV2()} disabled={!/^ballot-[0-9a-f]{32}$/.test(ballotPrepareId)}>Submit Ballot v2</button>{ballotReceipt && <dl className="artifact"><div><dt>Status</dt><dd>{String(ballotReceipt.status)}</dd></div><div><dt>Sequence</dt><dd>{String(ballotReceipt.sequence_number)}</dd></div><div><dt>Payer</dt><dd>{String(ballotReceipt.payer_account_id)}</dd></div><div><dt>Counted</dt><dd>{String(ballotReceipt.counted)}</dd></div></dl>}</section>}
+      {ballotV2Mode && <section className="wallet-section" aria-labelledby="ballot-v2-heading"><h2 id="ballot-v2-heading">Ballot v2 optimistic receipt</h2><p className="lede">Publish the canonical World artifact at a commit-fixed GitHub raw URL. The API fetches and verifies those exact bytes before HashPack approval. The Hedera receipt remains uncounted until historical verification.</p><label className="room-field artifact-reference-field"><span>Artifact SHA-256</span><input value={artifactSha256} onChange={(event) => { setArtifactSha256(event.target.value.trim().toLowerCase()); setBallotPreparation(null); setBallotReceipt(null); }} placeholder="64 lowercase hex characters" /></label><label className="room-field artifact-reference-field"><span>Commit-fixed artifact URL</span><input type="url" value={artifactReference} onChange={(event) => { setArtifactReference(event.target.value.trim()); setBallotPreparation(null); setBallotReceipt(null); }} placeholder="https://raw.githubusercontent.com/rtree/oshikatsu/&lt;commit&gt;/a/&lt;sha&gt;.json" /></label><button type="button" onClick={() => void sendBallotV2()} disabled={!/^[0-9a-f]{64}$/.test(artifactSha256) || !artifactReference}>Verify artifact and submit Ballot v2</button>{ballotPreparation && <dl className="artifact"><div><dt>Preparation</dt><dd>{ballotPreparation.id}</dd></div><div><dt>Bytes</dt><dd>{ballotPreparation.message_bytes}</dd></div><div><dt>Expected payer</dt><dd>{ballotPreparation.account_id}</dd></div></dl>}{ballotReceipt && <dl className="artifact"><div><dt>Status</dt><dd>{String(ballotReceipt.status)}</dd></div><div><dt>Sequence</dt><dd>{String(ballotReceipt.sequence_number)}</dd></div><div><dt>Payer</dt><dd>{String(ballotReceipt.payer_account_id)}</dd></div><div><dt>Counted</dt><dd>{String(ballotReceipt.counted)}</dd></div></dl>}</section>}
     </main>
   );
 }

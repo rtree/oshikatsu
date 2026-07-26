@@ -64,6 +64,17 @@ export type FormalRankingEntry = {
   tied: boolean;
 };
 
+const demoSessionStorageKey = "oshikatsu:demo-session:v1";
+
+function demoSession() {
+  let value = localStorage.getItem(demoSessionStorageKey);
+  if (!value) {
+    value = crypto.randomUUID();
+    localStorage.setItem(demoSessionStorageKey, value);
+  }
+  return value;
+}
+
 function isRoom(value: unknown): value is Room {
   if (!value || typeof value !== "object") return false;
   const room = value as Partial<Room>;
@@ -122,7 +133,7 @@ export async function createRoom(input: {
 }
 
 export async function fetchDemoRooms() {
-  const response = await fetch("/api/demo/rooms", { headers: { Accept: "application/json" }, credentials: "same-origin" });
+  const response = await fetch("/api/demo/rooms", { headers: { Accept: "application/json", "X-Demo-Session": demoSession() }, credentials: "same-origin", cache: "no-store" });
   const payload = await response.json() as { rooms?: unknown; error?: string };
   if (!response.ok) throw new Error(payload.error ?? `Demo Room list returned HTTP ${response.status}.`);
   if (!Array.isArray(payload.rooms) || !payload.rooms.every(isRoom)) throw new Error("Demo Room list returned an invalid response.");
@@ -132,7 +143,7 @@ export async function fetchDemoRooms() {
 export async function createDemoRoom() {
   const response = await fetch("/api/demo/rooms", {
     method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+    headers: { Accept: "application/json", "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID(), "X-Demo-Session": demoSession() },
     credentials: "same-origin",
     body: "{}",
   });
@@ -145,7 +156,7 @@ export async function createDemoRoom() {
 export async function archiveDemoRoom(room: Room) {
   const response = await fetch(`/api/demo/rooms/${encodeURIComponent(room.id)}`, {
     method: "DELETE",
-    headers: { Accept: "application/json", "Content-Type": "application/json", "If-Match": room.manifest_hash },
+    headers: { Accept: "application/json", "Content-Type": "application/json", "If-Match": room.manifest_hash, "X-Demo-Session": demoSession() },
     credentials: "same-origin",
     body: "{}",
   });

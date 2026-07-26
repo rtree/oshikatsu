@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { decodeGrooveEvent, encodeGrooveEvent, reactionIds } from "@oshikatsu/protocol";
 import { z } from "zod";
 import { getFirestore } from "./firestore.js";
-import { getRoom, requireActiveRoom, roomIdSchema } from "./rooms.js";
+import { getRoom, isDemoRoom, requireActiveRoom, roomIdSchema } from "./rooms.js";
 
 const accountIdSchema = z.string().regex(/^0\.0\.\d+$/);
 
@@ -62,6 +62,54 @@ export type ConfirmedShout = {
 
 function claimId(roomId: string, accountId: string) {
   return createHash("sha256").update(`${roomId}\0${accountId}`).digest("hex");
+}
+
+type GrooveWorldGrant = {
+  room_id: string;
+  manifest_hash: string;
+  account_id: string;
+  nullifier_commitment: string;
+  verified_at: string;
+};
+
+export function demoWorldGateAllows(input: {
+  demo_room: boolean;
+  confirmed_claim: boolean;
+  grant?: Pick<GrooveWorldGrant, "room_id" | "manifest_hash" | "account_id">;
+  room_id: string;
+  manifest_hash: string;
+  account_id: string;
+}) {
+  if (!input.demo_room || input.confirmed_claim) return true;
+  return input.grant?.room_id === input.room_id && input.grant.manifest_hash === input.manifest_hash && input.grant.account_id === input.account_id;
+}
+
+export async function recordGrooveWorldGrant(roomId: string, manifestHash: string, accountId: string, nullifier: string) {
+  const store = getFirestore();
+  const grantReference = store.collection("groove_world_grants").doc(claimId(roomId, accountId));
+  const nullifierCommitment = createHash("sha256").update(`oshikatsu:groove-world-nullifier:v1\0${roomId}\0${nullifier}`).digest("hex");
+  const nullifierReference = store.collection("groove_world_nullifiers").doc(nullifierCommitment);
+  const grant: GrooveWorldGrant = { room_id: roomId, manifest_hash: manifestHash, account_id: accountId, nullifier_commitment: nullifierCommitment, verified_at: new Date().toISOString() };
+  await store.runTransaction(async (transaction) => {
+    const existing = await transaction.get(nullifierReference);
+    if (existing.exists && (existing.data() as { account_id?: string }).account_id !== accountId) throw new Error("WORLD_NULLIFIER_ALREADY_BOUND");
+    transaction.set(nullifierReference, { room_id: roomId, account_id: accountId, verified_at: grant.verified_at }, { merge: false });
+    transaction.set(grantReference, grant, { merge: false });
+  });
+  return grant;
+}
+
+async function requireDemoWorldGrant(roomId: string, manifestHash: string, accountId: string) {
+  const demoRoom = await isDemoRoom(roomId);
+  if (!demoRoom) return;
+  const store = getFirestore();
+  const key = claimId(roomId, accountId);
+  const [claim, grantSnapshot] = await Promise.all([
+    store.collection("groove_shout_claims").doc(key).get(),
+    store.collection("groove_world_grants").doc(key).get(),
+  ]);
+  const grant = grantSnapshot.data() as GrooveWorldGrant | undefined;
+  if (!demoWorldGateAllows({ demo_room: demoRoom, confirmed_claim: claim.exists, ...(grant ? { grant } : {}), room_id: roomId, manifest_hash: manifestHash, account_id: accountId })) throw new Error("WORLD_PROOF_REQUIRED");
 }
 
 function laterShout(left: ConfirmedShout, right: ConfirmedShout) {
@@ -129,6 +177,7 @@ export async function prepareGroove(input: z.infer<typeof groovePrepareSchema>) 
   if (room.phase !== "LIVE") throw new Error("Room is not live.");
   if (!room.works.some((work) => work.id === input.work_id)) throw new Error("Work is not in this Room.");
   if (input.shout === undefined) throw new Error("A Shout is required for the demo vote.");
+  await requireDemoWorldGrant(room.id, room.manifest_hash, input.account_id);
 
   const id = `groove-${randomUUID().replaceAll("-", "")}`;
   const bytes = encodeGrooveEvent({

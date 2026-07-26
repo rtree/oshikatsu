@@ -5,9 +5,9 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto
 import { z } from "zod";
 import { requireAdmin } from "./admin-auth.js";
 import { environment, getWorldIdEnvironment } from "./config.js";
-import { ballotPrepareSchema, ballotRequestSchema, ballotV2ArtifactPrepareSchema, createBallotRequest, getBallotPreparation, getBallotStatus, prepareBallot, prepareBallotV2FromArtifact } from "./ballots.js";
+import { ballotPrepareSchema, ballotRequestSchema, ballotV2ArtifactPrepareSchema, ballotV2ManualPrepareSchema, createBallotRequest, getBallotPreparation, getBallotStatus, prepareBallot, prepareBallotV2FromArtifact } from "./ballots.js";
 import { addVerificationObservation, projectBallotRankings, verificationObservationSchema } from "./ballot-projection.js";
-import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove, rankRoomWorks } from "./groove.js";
+import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove, rankRoomWorks, recordGrooveWorldGrant } from "./groove.js";
 import { archiveDemoRoom, archiveRoom, createAdminRoom, createDemoRoom, createRoom, createRoomSchema, getAdminRoom, getRoom, getRoomAction, listActions, listAdminRooms, listDemoRooms, listRooms, requireRoomAction, retireAction, roomIdSchema } from "./rooms.js";
 
 const app = express();
@@ -41,6 +41,7 @@ const verifyRequestSchema = z.object({
 
 const proofRequestSchema = z.object({
   room_id: roomIdSchema,
+  account_id: z.string().regex(/^0\.0\.\d+$/).optional(),
 });
 
 const proofContextSchema = z.object({
@@ -49,6 +50,8 @@ const proofContextSchema = z.object({
   nonce: z.string().min(1),
   presence_required: z.boolean(),
   room_id: roomIdSchema,
+  manifest_hash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+  account_id: z.string().regex(/^0\.0\.\d+$/).optional(),
   signal: z.string().min(1).max(512),
 });
 
@@ -111,6 +114,10 @@ function operationError(response: express.Response, error: unknown, fallback: st
 }
 
 function demoOwner(request: express.Request, response: express.Response) {
+  const suppliedSession = request.header("x-demo-session");
+  if (suppliedSession && /^[0-9a-f-]{36}$/.test(suppliedSession)) {
+    return createHash("sha256").update(suppliedSession).digest("hex");
+  }
   const cookies = new Map((request.header("cookie") ?? "").split(";").flatMap((entry) => {
     const separator = entry.indexOf("=");
     return separator < 0 ? [] : [[entry.slice(0, separator).trim(), entry.slice(separator + 1).trim()]];
@@ -282,6 +289,12 @@ app.post("/api/ballots/prepare", async (request, response) => {
   try { response.status(201).json({ preparation: await prepareBallot(parsed.data) }); } catch (error) { operationError(response, error, "Ballot preparation failed."); }
 });
 
+app.post("/api/ballots/v2/prepare-from-artifact", async (request, response) => {
+  const parsed = ballotV2ManualPrepareSchema.safeParse(request.body);
+  if (!parsed.success) { response.status(400).json({ error: "Invalid Ballot v2 artifact input.", issues: parsed.error.issues }); return; }
+  try { response.status(201).json({ preparation: await prepareBallotV2FromArtifact(parsed.data) }); } catch (error) { operationError(response, error, "Ballot v2 preparation failed."); }
+});
+
 app.get("/api/ballots/status/:transactionId", async (request, response) => {
   const prepareId = typeof request.query.prepare_id === "string" ? request.query.prepare_id : "";
   if (!/^ballot-[0-9a-f]{32}$/.test(prepareId)) { response.status(400).json({ error: "A valid prepare_id is required." }); return; }
@@ -314,7 +327,10 @@ app.post("/api/world-id/request", async (request, response) => {
       signingKeyHex: worldId.signingKey,
       ttl: 300,
     });
-    const signal = `oshikatsu:${roomId}:${randomUUID()}`;
+    const accountId = parsed.data.account_id;
+    const signal = accountId
+      ? `oshikatsu:groove-world:v1:${roomId}:${room.manifest_hash}:${accountId}:${randomUUID()}`
+      : `oshikatsu:${roomId}:${randomUUID()}`;
 
     response.json({
       action,
@@ -327,6 +343,8 @@ app.post("/api/world-id/request", async (request, response) => {
           nonce: signature.nonce,
           presence_required: false,
           room_id: roomId,
+          manifest_hash: room.manifest_hash,
+          ...(accountId ? { account_id: accountId } : {}),
           signal,
         },
         worldId.signingKey,
@@ -392,9 +410,24 @@ app.post("/api/world-id/verify", async (request, response) => {
     );
     const verification = (await verificationResponse.json()) as Record<string, unknown>;
 
+    if (verificationResponse.ok && verification.success === true && context.account_id && context.manifest_hash) {
+      const room = await getRoom(context.room_id);
+      if (!room || room.manifest_hash !== context.manifest_hash) {
+        response.status(409).json({ success: false, code: "room_manifest_changed" });
+        return;
+      }
+      const nullifier = proof.responses[0]?.nullifier;
+      if (!nullifier) {
+        response.status(400).json({ success: false, code: "missing_nullifier" });
+        return;
+      }
+      await recordGrooveWorldGrant(context.room_id, context.manifest_hash, context.account_id, nullifier);
+    }
+
     response.status(verificationResponse.status).json({
       ...verification,
       room_id: context.room_id,
+      account_id: context.account_id,
       signal_matches: true,
     });
   } catch {

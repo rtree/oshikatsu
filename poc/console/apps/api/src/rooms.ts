@@ -282,6 +282,11 @@ export async function requireActiveRoom(roomId: string) {
   if (admin?.state === "ARCHIVED") throw new Error("ROOM_ARCHIVED");
 }
 
+export async function isDemoRoom(roomId: string) {
+  const admin = (await getFirestore().collection("room_admin").doc(roomId).get()).data() as RoomAdmin | undefined;
+  return admin?.state === "ACTIVE" && admin.purpose === "DEMO";
+}
+
 export async function archiveRoom(id: string, manifestHash: string, confirmId: string, reason: string, actor: string) {
   if (id === "lisbon-main") throw new Error("PROTECTED_ROOM");
   if (confirmId !== id) throw new Error("ROOM_CONFIRMATION_MISMATCH");
