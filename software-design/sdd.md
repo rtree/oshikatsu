@@ -37,6 +37,14 @@ Web2のコメントは複数投稿可能であったり、投稿がノーコス�
 
 Roomはだれでも開設できる。HackathonのデモではRoom開設用UIからmanifestを作成する。本番でもRoomの開始・終了条件はmanifestの固定`opensAt`と`deadline`で決まり、主催者が後から変更することはできない。
 
+## Shout is the Vote
+
+Oshikatsuの利用者に、Shoutとは別の`Ballot`操作を見せない。**作品または人を選び、Reactionと短い言葉を添えて送るShoutそのものが、そのRoomにおけるVoteである。** ReactionだけではVoteにならず、Mirrorで確認された最新のShoutがその参加者のcurrent intentになる。
+
+各Roomで最初のShoutを送るときにWorld IDで一人の人間であることを証明し、Room、候補、Hedera account、Shout intent、World anchorを同じEvidenceへ束縛する。canonical World Evidenceは公開参照とSHA-256によってHCS eventへcommitされ、第三者は後から固定World stateで再検証できる。HCSとMirrorはShoutのexact bytes、payer、consensus順序、deadline前後の正本である。
+
+既存codeやprotocol fixtureに残る`Ballot` / `Ballot v2`という名前は、Protected ShoutのWorld Evidence commitmentを運ぶ内部wire envelopeの識別子であり、利用者がShoutとは別に行う二つ目の投票操作ではない。以降の技術記述で`initial ballot`、`update`、`withdraw`と書く場合も、それぞれ最初のProtected Shout、そのShoutによるcurrent intentの更新、current intentの取消を意味する。この節は、後続の画面文言や旧説明に残る「Shoutは投票を変更しない」という記述より優先する。
+
 ## Hackの観点からみた「Oshikatsu」
 
 > Cryptoを活用したSybil Resistanceな仮名投票システム。World IDのOrb-backed Proof of Human credential issuanceを信頼境界に含め、World ID＋HCSの組み合わせによって、投票Window内にHCS consensusへ到達した投票だけが有効＋特定の人物が最後に実施した投票が有効票として扱われる＋Roomごとに一人一票が成立する＋投票者がOrbで人間証明済みである一方、投票そのものは仮名である（Walletのアドレスは現実世界のIdentityではない）＋集計が第三者でVerifiableで投票の主催者によって結果が操作されていない保証がある＋投票そのものに微量のコストがかかるためランダム投票など意味のない票を排除できる＋公開の場所で誰でも投票を開催でき投票開始前ならだれでも立候補できる　などの民主主義に必須の公正な投票をオンラインで行うための基盤が実現
@@ -45,17 +53,17 @@ Roomはだれでも開設できる。HackathonのデモではRoom開設用UIか�
 
 ```
 Hedera Wallet（HashPack）を接続
-  -> Room内で投票する漫画のrankを選択したりコメントしたりしてから、確定ボタンを押す
-  -> Room・コメントhash・Hedera Walletを束縛したballot hashとWorld signalを生成
-  -> そのRoomへの初回投票時に限り、World ID v4による人間証明を取得
+    -> Room内で推す作品または人を選び、Reactionと短い言葉を添えてShoutを作る
+    -> Room・候補・Shout intent・Hedera Walletを束縛したcommitmentとWorld signalを生成
+    -> そのRoomへの初回Shout時に限り、World ID v4による人間証明を取得
    -> World Chainの鮮度条件を満たすanchor blockと公式WorldIDVerifierを使い、proofを投稿前に検証
     -> proofが有効な場合、raw World proofを公開のcontent-addressed evidence storageへ保存
-    -> Wallet本人がproof digestとimmutable evidence referenceを含む900-byte以下の初回ballotをHCSへ直接投稿
+        -> Wallet本人がShoutとproof digest、immutable evidence referenceを束縛した900-byte以下のProtected Shout envelopeをHCSへ直接投稿
     -> Mirror Nodeからsingle-message HCS eventを取得し、exact bytesを検証
    -> anchor blockがWorld Chainでfinalizedになるまで待つ
   -> 投票時に固定したWorld Chainの同じhistorical stateを使い、第三者もWorld proofを再検証
-  -> 同じRoom・同じWorld nullifierについて、HCS上で最初に成立した初回ballotだけにRoom capabilityを付与
-  -> capability取得後はWorld IDを再度要求せず、同じHedera Walletから投票の更新・取消をHCSへ投稿
+    -> 同じRoom・同じWorld nullifierについて、HCS上で最初に成立したProtected ShoutだけにRoom capabilityを付与
+    -> capability取得後はWorld IDを再度要求せず、同じHedera WalletからShoutの更新・取消をHCSへ投稿
    -> 同じcapabilityについて、manifestのdeadline以前に完了したHCS eventのうち最後のものを正式な投票状態として採用
    -> deadline後にauthority認証済みSEALを投稿し、固定済みdeadlineまでの結果を確定
 ```
@@ -176,7 +184,7 @@ Oshikatsuのwallet署名eventは、HCSのnetwork上限1,024 bytesに対してapp
 - canonical encodingとfield上限はprotocol versionで固定する。
 - Reactionは定義済みstamp IDだけを送り、表示labelやassetをpayloadへ重複格納しない。
 - Shout本文はUnicode code pointで最大200文字、かつ本文単体で最大600 UTF-8 bytesとする。
-- formal BallotはShout本文を含めず、ranking、World proof digest、immutable evidence reference、World anchorだけを持つ。
+- Protected Shoutの表示本文はcanonical Shout eventが持つ。内部Evidence envelope（旧wire名`Ballot v2`）は本文を重複せず、選択した候補またはranking、World proof digest、immutable evidence reference、World anchorを持つ。これは別の投票ではなく、同じShout Voteを後日再検証するためのcommitmentである。
 - raw World proof、画像、AI output、表示用metadataはHCSへ直接格納しない。
 
 200文字がすべて3-byteの日本語でも本文は600 bytesである。Room ID、event ID、stamp IDを含むJSON envelopeのworst-case fixtureは900 bytes以下でなければならない。絵文字や結合文字によりUTF-8上限を超える場合は、200文字以下でも入力を拒否する。
@@ -276,7 +284,7 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
     - 押すとそのRoom（ライブ会場）に入る
 
 - 領域名：SpecialRoomの入口
-    - 領域の目的や機能：漫画文化へ貢献したReaderを候補として見て、人への推しをformal ballotとして表す。ソシャゲの期間限定イベントのようにホームに表示される。通常Roomとは別領域にこれが表示される
+    - 領域の目的や機能：漫画文化へ貢献したReaderを候補として見て、人への推しをProtected Shout（Vote）として表す。ソシャゲの期間限定イベントのようにホームに表示される。通常Roomとは別領域にこれが表示される
     - 領域のデザインのテイスト：ソシャゲの期間限定イベントのバナー。特別なイベント感のある場所。年数回の祝祭。通常Roomより ceremonialな表現
     - 内部にある部品
         - Room: 
@@ -318,7 +326,7 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
             - 内部にある部品
                 - Lineup：cover stackと`Tonight's Lineup`で候補作品の全体像を伝える
                 - Locked state：`Lineup Locked`を表示する
-                - `Open Groove`：作品のGrooveへ進む。これだけではformal ballotを変更しない
+                - `Open Groove`：作品のGrooveへ進む。画面を開くだけではShout Voteを送らない
         - 領域名：VotingStatus
             - 領域の目的や機能：選んだ作品のGroove（他の人のスタンプや叫びの勢い）を表示する
             - 領域のデザインのテイスト：みんなが作品の周りに集まっている画面。作品が中心にあり、周りにみんなのスタンプが囲っている
@@ -335,16 +343,16 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
                 - スタンプを押した人数
                 - 叫び一覧
                 - `Osu!(React & Shout)`
-                    - VotingDialogueを表示する。これだけではformal ballotを変更しない
+                    - VotingDialogueを表示する。dialogを開くだけではVoteにならず、`Send Shout`で初めてProtected Shoutを送る
                     - 領域名：VotingDialogue
-                        - 領域の目的や機能：スタンプと叫びを選び、Groove eventを作る
+                        - 領域の目的や機能：ReactionとShoutを選び、選択中の作品へのcurrent Voteを表すProtected Shout eventを作る
                         - 領域のデザインのテイスト：感情の強さを保つ大きなスタンプと短い入力欄
                         - 内部にある部品
                             - Reaction palette：`🔥 Peak Chapter`、`😭 Cried My Eyes Out`、`🥺 Too Precious`、`🐉 Next Chapter Now`、`👑 Chapter of the Week`、`💡 I'm Dead`、`🤗 I Melted`、`🐼 Emotionally Wrecked`、`🌋 I'm Losing It`から選ぶ
                             - Shout input：`Drop your post-chapter scream...`へ短い感想を入力する
-                            - Groove action：`Send to the Groove`でwork、Reaction、Shout、accountを束ねたintentを作る
-                - `Add to My Top 3`：この作品をranking候補へ加える。追加済みなら`Remove from My Top 3`へ切り替える
-    - 領域名：投票後画面VotingRanking
+                            - Vote action：`Send Shout`でwork、Reaction、Shout、accountを束ねたcurrent intentを作る。初回だけWorld proofを要求する
+                - `Add to My Shelf`：投票とは独立して、この作品をpersonal collectionへ保存する。追加済みなら`Remove from My Shelf`へ切り替える
+    - 領域名：Room Ranking画面
         - 領域の目的や機能：deadlineまでの最後の意思を集計したrankingと、そのRoomのGrooveWaveを見返す。
         - 領域のデザインのテイスト：画面下部に安定して見える強いaction bar
         - 内部にある部品
@@ -354,7 +362,7 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
                 - 内部にある部品
                     - Winner feature：`Tonight's Winner`として一位作品を示す
                     - Final Ranking：全作品の順位とpointを示す
-                    - Verification summary：`Verified Ballots`、cutoff、accepted ballot数を要約する
+                    - Verification summary：`Verified Shouts`、cutoff、accepted Shout数を要約する
                     - Verify Results：manifest hash、result hash、public replayへ進む
 
 
@@ -371,16 +379,16 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
             - Public Contribution Signals：根拠eventへ辿れる候補理由を示す
             - Activity summary：public eventを短く要約する。AI生成時は`AI-generated summary of public activity`と表示し、必ず根拠eventへ辿れるようにする
             - Voter selection：投票対象を一人選ぶ
-            - Formal action：`Vote for This Finalist`からWorld proofとWallet署名へ進む
+            - Shout action：`Shout for This Finalist`から、初回だけWorld proofを経てWallet署名へ進む
 
-        AI outputは候補資格、投票weight、順位、reward entitlementを決めない。AIが利用不能でも候補比較とformal ballotを続行できる。
+        AI outputは候補資格、投票weight、順位、reward entitlementを決めない。AIが利用不能でも候補比較とProtected Shoutを続行できる。
 
 
 ### 画面名：Wallet接続・World Proof進行
 
 この画面ですること：
-    Readerがformal ballotとRoom capabilityを自分のHedera accountへ結びつける。
-    WalletはPoCではHashPack一択とする。この画面は専用にあるというよりもWallet接続や人間証明がVoteやNominateの署名に必要なときに必要に応じて呼び出される画面。初回ballotに必要なProof of Humanを取得し、World anchor finalityと公開検証の進行をReaderへ伝える。
+    ReaderがProtected ShoutとRoom capabilityを自分のHedera accountへ結びつける。
+    WalletはPoCではHashPack一択とする。この画面は専用にあるというよりもWallet接続や人間証明がShoutやNominateの署名に必要なときに必要に応じて呼び出される画面。初回Shoutに必要なProof of Humanを取得し、World anchor finalityと公開検証の進行をReaderへ伝える。
 
 - 領域名：Wallet選択
     - 領域の目的や機能：HashPackと接続中accountを示す。Wallet接続が必要なタイミングで表示され、Worldによる人間認証やVoteの署名をKickする
@@ -392,7 +400,7 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
         - Browse action：署名不要の閲覧へ戻る`Browse Without Connecting`
 
 - 領域名：Proof request
-    - 領域の目的や機能：Room固有action、ballot signal、World App handoffを扱う
+    - 領域の目的や機能：Room固有action、Shout intent signal、World App handoffを扱う
     - 領域のデザインのテイスト：privacyと進行状況を中心にした静かな画面
     - 内部にある部品
         - Proof of Human説明：`One human. One spot in this Room.`で一人一資格の意味を伝える
@@ -400,7 +408,7 @@ HCS open-submit topicは、期限後の投稿をnetwork入口では拒否しな�
         - Trust summary：`Orb-verified human`、`Unique in this Room`、`Privacy-preserving proof`
         - Privacy details：World ID上のidentityは公開せず、proof、nullifier、Room-bound inputsが公開検証されることを示す
 
-- 領域名：初回ballot status
+- 領域名：Protected Shout status
     - 領域の目的や機能：状態遷移を一つの進行として示す
     - 領域のデザインのテイスト：technical logよりも旅程表示に近いstepper
     - 内部にある部品
@@ -458,19 +466,19 @@ Oshikatsuで使う日本語のファン語と英語UI上の意味を次に固定
 | --- | --- | --- | --- |
 | 推し | oshi | `Oshi` / `Favorite` | 特に応援したい作品または人。Oshikatsu固有概念として`Oshi`を使えるが、初出では対象が分かる文脈を添える。一般的な説明では`favorite`を使う。 |
 | 推し活 | oshikatsu | `Oshikatsu` / `supporting your oshi` | 推しを応援し、語り、発見を広げる活動全体。製品名と重なるため、機能名へ機械的に`Oshi Time`とは訳さない。 |
-| 推す | osu | 操作に応じて`React`、`Shout`、`Add to My Top 3`、`Vote` | 日本語では応援行為全般を含むが、英語UIではformal effectを明確にするため一語へまとめない。感情、叫び、ranking候補追加、formal ballotをそれぞれ分ける。 |
+| 推す | osu | 操作に応じて`React`または`Shout` | 日本語では応援行為全般を含む。英語UIではReactionは感情だけを送り、Shoutは作品または人へのcurrent Voteを送る。別のBallot操作は表示しない。 |
 | スタンプ | sutampu | `Reaction` | 作品への感情をemojiとlabelで送る短い表現。ballotを変更しない。英語UIでは`Stamp`より自然な`Reaction`を使う。 |
-| 叫び | sakebi | `Shout` | 読後の熱量を短文で放つ表現。一般的な議論を表す`Comment`とは区別し、ballotを変更しない。 |
+| 叫び | sakebi | `Shout` / `Vote` | 読後の熱量を短文で放つと同時に、選んだ作品または人へのcurrent Voteを表す。一般的な議論を表す`Comment`とは区別する。 |
 | 推薦 | suisen | `Nomination` | Room開始前に作品を候補集合へ提案すること。作品を薦める一般行為と区別する必要がある場所では`Room Nomination`とする。 |
 | 候補 | kouho | `Nominee` | Nomination Windowを通過し、Roomで比較または投票される作品・人物。 |
-| 投票 | touhyou | `Vote` / `Ballot` | HCSへ記録されるformal intent。操作には`Vote`、記録された内容や状態には`Ballot`を使う。ReactionやShoutをVoteとは呼ばない。 |
+| 投票 | touhyou | `Vote` / `Protected Shout` | HCSへ記録されるformal intent。利用者の操作と表示には`Shout`または`Vote`を使う。`Ballot v2`はEvidence commitmentを運ぶ内部wire名に限定する。ReactionだけをVoteとは呼ばない。 |
 | 盛り上がり | moriagari | `Groove` | Room内のReaction、Shout、参加の勢いをまとめたOshikatsu固有のlive energy。単純な投票数ではない。 |
 | 共鳴 | kyoumei | `Resonance` | Readerの表現が他のReaderへ届き、反応を生んだ度合い。算出根拠を示せる場合だけ指標名として使う。 |
-| 本棚 | hondana | `My Shelf` | Readerが登録した作品と、次に読みたい作品を置くpersonal collection。formal ballotとは独立する。 |
+| 本棚 | hondana | `My Shelf` | Readerが登録した作品と、次に読みたい作品を置くpersonal collection。Shout Voteとは独立する。 |
 | 実績 | jisseki | `Badges` / `Achievements` | Room参加や応援の履歴から得る記録。画面上の収集物は`Badges`、制度全体は`Achievements`とする。on-chain tokenである場合だけ`NFT`と表示する。 |
 | 原石発掘 | genseki hakkutsu | `Hidden Gem Scout` | まだ注目が少ない段階で、後にRoom winnerとなる作品を早く推したReaderの実績。 |
 | 継続応援 | keizoku ouen | `Long-Run Supporter` | 複数Roomに継続参加し、作品を応援してきたReaderの実績。 |
-| 投票回数 | touhyou kaisuu | `Rooms Joined` / `Ballots Cast` | 何を数えるかで英語を分ける。Room参加数は`Rooms Joined`、成立したformal ballot数は`Ballots Cast`とする。 |
+| 投票回数 | touhyou kaisuu | `Rooms Joined` / `Votes Cast` | 何を数えるかで英語を分ける。Room参加数は`Rooms Joined`、成立したProtected Shout数は`Votes Cast`とする。 |
 
 #### Reaction vocabulary
 
@@ -492,10 +500,10 @@ VocabularyをUIへ表示する場合も、英語labelを操作の主表示とし
 
 利用者に表示するcopyは英語を正本とし、日本語は設計意図の説明にのみ使う。操作名は結果の違いを曖昧にしない。
 
-- `React`と`Shout`はGrooveへの表現であり、ballotを変更しない。
+- `React`はGrooveへの感情表現であり、Voteを変更しない。`Shout`はGrooveへの表現であると同時に、選択した作品または人へのcurrent Voteを更新する。
 - `Nominate`はRoom開始前の候補追加にだけ使う。
-- `Vote`と`Ballot`はHCSへ記録するformal intentにだけ使う。
-- 更新は`Update Ballot`、取消は`Withdraw Ballot`とし、`Delete`や意味のない`Confirm`を使わない。
+- `Vote`と`Protected Shout`はHCSへ記録するformal intentにだけ使う。利用者に別の`Ballot` actionを見せない。
+- 更新は新しいShoutを送る`Update Shout`、取消は`Withdraw Shout`とし、`Delete`や意味のない`Confirm`を使わない。
 - `Oshi`と`Groove`はOshikatsu固有語として使う。初見で意味が推測できない場所では、作品、Room、応援の文脈を同時に示す。
 - 一般参加者を`Jury`とは呼ばず、`Voter`または`Verified Voter`とする。
 
@@ -518,7 +526,7 @@ Reader Appは「黒い画面に紫を置く」のではなく、暗転したラ�
 - mobile firstとし、主要なvisual、現在のphase、primary actionが最初のviewportで理解できるようにする。
 - bottom navigationの項目と順序はReader Appの定義に従い、画面ごとに変更しない。
 - 固定action barとbottom navigationが本文、最後のcard、入力欄を隠さないsafe areaを確保する。
-- desktopではmobile画面を拡大せず、中央にRoomまたは作品、左右にLineup、Groove、ballot statusを配置する。
+- desktopではmobile画面を拡大せず、中央にRoomまたは作品、左右にLineup、Groove、Protected Shout statusを配置する。
 - listとcomparisonは一定のcover ratioとrow heightを保ち、titleやcountの長さでlayoutを動かさない。
 
 ### State expression
@@ -527,7 +535,7 @@ Reader Appは「黒い画面に紫を置く」のではなく、暗転したラ�
 - HCSへの送信完了は投票成立ではない。`CAPABILITY_GRANTED`になるまでsuccess color、checkmark、confettiを使わない。
 - `PENDING`は進行中、`UNVERIFIABLE`は公開証拠の一時不足、`INVALID`は検証不成立として、色、icon、copyを分ける。
 - protocol hash、sequence、block情報は隠さず、主画面では要約し、詳細を開いたときに確認できるようにする。
-- error画面でもReaderのTop 3や入力済みShoutを保持し、再試行で最初から選び直させない。
+- error画面でもReaderが選んだ作品と入力済みShoutを保持し、再試行で最初から選び直させない。
 
 ### Accessibility and assets
 
@@ -600,7 +608,7 @@ productionの`proofOfHuman`、`allow_legacy_proofs=false`で次を実証する�
 
 ### Gate 0-C: HashPack wallet-signed single-message HCS event
 
-HashPack実機でHedera testnetのopen-submit topicへ、実際のReaction、Shout、Ballot envelopeを各1 transactionとして投稿する。application payloadは900 UTF-8 bytes以下、SDKは`setMaxChunks(1)`とする。
+HashPack実機でHedera testnetのopen-submit topicへ、実際のReactionとProtected Shoutを各1 transactionとして投稿する。Protected Shoutは利用者のShout intentとWorld Evidence commitmentを束縛し、内部wire fixtureでは`Ballot v2`と呼ばれる。application payloadは900 UTF-8 bytes以下、SDKは`setMaxChunks(1)`とする。
 
 **確認事項:** approval回数、payer、transaction ID、sequence、consensus timestamp、exact message bytes、Mirror取得前のwallet成功表示をformal successと誤認しないこと、900/901-byte境界でwalletを開く前にそれぞれ許可/拒否すること。
 
@@ -744,12 +752,12 @@ doctor
 fixture verify
 world spike
 wallet handoff
-ballot submit
-ballot status
+shout submit
+shout status
 replay room
 ```
 
-追加commandは対応milestoneへ到達した時点で増やす。先に全commandのstubを作らない。
+現行codeに残る`ballot submit` / `ballot status`は内部互換aliasとしてのみ扱い、新しい文書、demo、help outputでは`shout` commandを正本とする。追加commandは対応milestoneへ到達した時点で増やす。先に全commandのstubを作らない。
 
 ## Evidence and context continuity
 
@@ -793,11 +801,11 @@ SDDへ作業statusを書かない。Issueへprotocolの正本を複製しない�
 
 - Gate 0-A〜0-Dがすべて`GO`または明示された`GO WITH CONSTRAINT`である。
 - Orb-backed World ID v4 production proofを実機で取得している。
-- proof digestとimmutable evidence referenceを含む900-byte以下のinitial ballotをHashPackからHedera testnetへ直接投稿している。
+- proof digestとimmutable evidence referenceを含む900-byte以下のinitial Protected Shout envelopeをHashPackからHedera testnetへ直接投稿している。
 - public evidence storageからraw proofを取得し、HCS記録digestと一致することを確認している。
 - Mirror Nodeからsingle-message exact bytes、payer、sequence、consensus timestampを取得している。
 - 同じWorld blockでhistorical verifier callをfinality後に再実行している。
-- initial ballotがpublic evidenceから`CAPABILITY_GRANTED`へ到達している。
+- initial Protected Shoutがpublic evidenceから`CAPABILITY_GRANTED`へ到達している。
 - update、withdraw、再update、deadline跨ぎをreal HCS eventで確認している。
 - fresh processによるpublic replayがBackendと同じresult hashを生成している。
 - provider停止、evidence取得不能、World App拒否、HashPack拒否、oversize preflight拒否、chunked event拒否、`INVALID`、`UNVERIFIABLE`を観測している。
@@ -810,7 +818,7 @@ API Build + Headless PoC TestingのCompletion Gate通過後、画面定義へ具
 - [ ] 各画面のView Dataを確定済みread modelへ対応させる
 - [ ] 各actionを確定済みuse caseへ対応させる
 - [ ] PENDING、INVALID、UNVERIFIABLEをReader向けの言葉とvisual stateへ変換する
-- [ ] Roomの時間、GrooveWave、World Proof進行、Ballot current intentをinteraction prototypeへ落とす
+- [ ] Roomの時間、GrooveWave、World Proof進行、Protected Shout current intentをinteraction prototypeへ落とす
 - [ ] desktopとmobileのnavigation、layout、motion、accessibilityを設計する
 - [ ] 実装に使う背景、cover、avatar、frame、textureを用途別assetへ分離する
 - [ ] 画像へ焼き込まれた日本語、countdown、counts、buttons、bottom navigationをReact componentへ置き換える
