@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { archiveDemoRoom, createDemoRoom, fetchDemoRooms, fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type DemoRoomDuration, type Room, type RoomProjection, type RoomWork } from "./rooms-api";
 import { GrooveConfirmationTimeoutError, prepareGroove, waitForGrooveConfirmation, type GrooveStatus } from "./groove-api";
-import { requireHashPackAccount, submitPreparedGroove } from "./hedera-wallet";
+import { getLinkedHashPackAccount, requireHashPackAccount, submitPreparedGroove } from "./hedera-wallet";
 import { requestGrooveWorldProof, verifyGrooveWorldProof, type GrooveWorldRequest } from "./world-api";
 
 type View = "home" | "room" | "rankings" | "shelf" | "profile";
@@ -264,9 +264,11 @@ export function App() {
     if (!selectedRoom || !selectedWork) return;
     setGrooveError(null);
     setGrooveEvidence(null);
+    let connectedAccount: Awaited<ReturnType<typeof requireHashPackAccount>> | null = null;
     try {
       setGrooveState("connecting");
       const account = await requireHashPackAccount();
+      connectedAccount = account;
       setGrooveState("preparing");
       const preparation = await prepareGroove({
         room_id: selectedRoom.id,
@@ -284,7 +286,7 @@ export function App() {
       const message = error instanceof Error ? error.message : "Shout submission failed.";
       if (message === "WORLD_PROOF_REQUIRED" && selectedRoom) {
         try {
-          const account = await requireHashPackAccount();
+          const account = connectedAccount ?? await requireHashPackAccount();
           setWorldRequest(await requestGrooveWorldProof(selectedRoom.id, account.accountId));
           setWorldOpen(true);
           setGrooveError("Your first Shout in this DEMO Room needs one World human proof.");
@@ -462,11 +464,14 @@ function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelec
         <section className="work-stage" aria-labelledby="work-title">
           <img className="work-art" src={isSpecial ? selectedParticipant.image : work.hero_url ?? work.cover_url} alt={isSpecial ? `${selectedParticipant.name}, participant finalist` : `${work.title} featured artwork`} />
           <div className="work-vignette" />
+          {isSpecial && <div className="work-intro special-intro">
+            <p className="kicker gold">SELECTED FINALIST</p>
+            <h1 id="work-title">{selectedParticipant.name}</h1>
+            <p>{selectedParticipant.role} · {projectionState.status === "ready" ? `${events.length} confirmed Shout${events.length === 1 ? "" : "s"}` : "Activity unavailable"}</p>
+            <p className="participant-bio">{selectedParticipant.bio}</p>
+          </div>}
           <div className="work-copy">
-            <p className={isSpecial ? "kicker gold" : "kicker"}>{isSpecial ? "SELECTED FINALIST" : "NOW IN THE GROOVE"}</p>
-            <h1 id="work-title">{isSpecial ? selectedParticipant.name : work.title}</h1>
-            <p>{isSpecial ? selectedParticipant.role : work.chapter} · {projectionState.status === "ready" ? `${events.length} confirmed Shout${events.length === 1 ? "" : "s"}` : "Activity unavailable"}</p>
-            {isSpecial && <p className="participant-bio">{selectedParticipant.bio}</p>}
+            {!isSpecial && <div className="work-intro"><p className="kicker">NOW IN THE GROOVE</p><h1 id="work-title">{work.title}</h1><p>{work.chapter} · {projectionState.status === "ready" ? `${events.length} confirmed Shout${events.length === 1 ? "" : "s"}` : "Activity unavailable"}</p></div>}
             {isSpecial && <section className="participant-profile" aria-label={`${selectedParticipant.name} demo profile`}>
               <div className="participant-profile-heading"><div><span>DEMO PROFILE</span><strong>Lv.{selectedParticipant.level}</strong></div><p>{selectedParticipant.specialty}</p></div>
               <dl className="participant-stats">{selectedParticipant.stats.map((stat) => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}</dd></div>)}</dl>
@@ -476,7 +481,7 @@ function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelec
             {!isSpecial && <a className="read-link" href={work.reading_url} target="_blank" rel="noreferrer"><BookOpen size={18} /> Read Official Chapter</a>}
           </div>
           <div className="work-actions">
-            <button className="primary-action" type="button" onClick={onOpenGroove} disabled={closed}>{closed ? "Room closed" : isSpecial ? "Vote for this participant" : "Osu!"} <MessageCircle size={20} /></button>
+            <button className="primary-action" type="button" onClick={onOpenGroove}>{closed ? "Shout · not counted" : isSpecial ? "Vote for this participant" : "Osu!"} <MessageCircle size={20} /></button>
             {!isSpecial && <button className={inShelf ? "secondary-action active" : "secondary-action"} type="button" onClick={onToggleShelf}>{inShelf ? "Remove from My Shelf" : "Add to My Shelf"}</button>}
           </div>
         </section>
@@ -486,14 +491,14 @@ function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelec
           {projectionState.status === "loading" && <p className="dialog-note" role="status">Loading confirmed events...</p>}
           {projectionState.status === "error" && <p className="dialog-note" role="alert">Groove evidence unavailable.</p>}
           {projectionState.status === "ready" && events.length === 0 && <p className="dialog-note">No confirmed Shouts yet.</p>}
-          {projectionState.status === "ready" && <div className="shout-feed">{events.map((event) => <GrooveEvidence event={event} work={room.works.find((candidate) => candidate.id === event.work_id) ?? null} key={event.prepare_id} />)}</div>}
+          {projectionState.status === "ready" && <div className="shout-feed">{events.map((event) => { const eventWork = room.works.find((candidate) => candidate.id === event.work_id) ?? null; const participant = eventWork ? participantFor(eventWork) : null; return <GrooveEvidence event={event} work={eventWork} displayImage={isSpecial ? participant?.image : eventWork?.cover_url} displayTitle={isSpecial ? participant?.name : eventWork?.title} key={event.prepare_id} />; })}</div>}
         </aside>
       </div>
     </main>
   );
 }
 
-function GrooveEvidence({ event, work }: { event: ConfirmedGrooveEvent; work: RoomWork | null }) {
+function GrooveEvidence({ event, work, displayImage, displayTitle }: { event: ConfirmedGrooveEvent; work: RoomWork | null; displayImage?: string; displayTitle?: string }) {
   const [expanded, setExpanded] = useState(false);
   let message: { s?: string; c?: string } = {};
   try {
@@ -505,8 +510,8 @@ function GrooveEvidence({ event, work }: { event: ConfirmedGrooveEvent; work: Ro
   const late = event.projection_state === "LATE";
   const evidenceId = `evidence-${event.event_hash}`;
   return <article className={late ? "shout-row late" : "shout-row"}>
-    {work && <img className="shout-cover" src={work.cover_url} alt={`${work.title} cover`} />}
-    <div className="shout-content"><span>{late ? "LATE · NOT COUNTED" : `HEDERA CONFIRMED · SEQUENCE #${event.sequence_number}`}</span><b>{work?.title ?? event.work_id}</b><strong>{reaction && <img src={reaction.icon} alt="" />}{reaction?.label ?? "Confirmed reaction"}</strong>{message.c && <p>{message.c}</p>}<button className="evidence-toggle" type="button" aria-expanded={expanded} aria-controls={evidenceId} onClick={() => setExpanded((current) => !current)}><FileSearch size={15} /> Evidence</button></div>
+    {displayImage && <img className="shout-cover" src={displayImage} alt={displayTitle ?? work?.title ?? "Vote target"} />}
+    <div className="shout-content"><span>{late ? "LATE · NOT COUNTED" : `HEDERA CONFIRMED · SEQUENCE #${event.sequence_number}`}</span><b>{displayTitle ?? work?.title ?? event.work_id}</b><strong>{reaction && <img src={reaction.icon} alt="" />}{reaction?.label ?? "Confirmed reaction"}</strong>{message.c && <p>{message.c}</p>}<button className="evidence-toggle" type="button" aria-expanded={expanded} aria-controls={evidenceId} onClick={() => setExpanded((current) => !current)}><FileSearch size={15} /> Evidence</button></div>
     {expanded && <section className="shout-evidence" id={evidenceId}><h3>Shout evidence</h3><p>This wallet-signed Shout was matched to one exact Hedera topic message. It is not a Ballot v2 record.</p><dl><div><dt>Payer</dt><dd>{event.payer_account_id}</dd></div><div><dt>Topic</dt><dd>{event.topic_id}</dd></div><div><dt>Consensus</dt><dd>{event.consensus_timestamp}</dd></div><div><dt>Event hash</dt><dd>{event.event_hash}</dd></div><div><dt>World proof</dt><dd>First-Shout gate only; not embedded in this row</dd></div><div><dt>Later verification</dt><dd>Use Ballot v2 artifact and World anchor evidence</dd></div></dl><div className="evidence-links"><a href={`https://testnet.mirrornode.hedera.com/api/v1/topics/${event.topic_id}/messages/${event.sequence_number}`} target="_blank" rel="noreferrer">Topic message <ExternalLink size={13} /></a><a href={`https://testnet.mirrornode.hedera.com/api/v1/transactions/${encodeURIComponent(event.transaction_id)}`} target="_blank" rel="noreferrer">Transaction <ExternalLink size={13} /></a></div></section>}
   </article>;
 }
@@ -560,7 +565,7 @@ function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShou
           ))}
         </div>
         <label className="shout-field"><span>Shout</span><textarea value={shout} onChange={(event) => updateShout(event.target.value)} placeholder="Drop your post-chapter scream..." /><small>{[...shout].length}/200 · {shoutBytes}/600 UTF-8 bytes</small></label>
-        <button className="primary-action full" type="button" onClick={onSubmit} disabled={(!retryConfirmation && (shoutBytes === 0 || shoutBytes > 600)) || !["idle", "confirmed"].includes(state)}>{state === "idle" ? retryConfirmation ? "Retry confirmation" : "Send Shout" : state === "connecting" ? "Connect HashPack" : state === "preparing" ? "Checking Room eligibility" : state === "approving" ? "Approve in HashPack" : state === "confirming" ? "Confirming on Mirror" : "Send another Shout"} <Sparkles size={20} /></button>
+        <button className="primary-action full" type="button" onClick={onSubmit} disabled={(!retryConfirmation && (shoutBytes === 0 || shoutBytes > 600)) || !["idle", "confirmed"].includes(state)}>{state === "idle" ? retryConfirmation ? "Retry confirmation" : "Send Shout" : state === "connecting" ? "Connecting HashPack..." : state === "preparing" ? "Checking Room eligibility" : state === "approving" ? "Approve in HashPack" : state === "confirming" ? "Confirming on Mirror" : "Send another Shout"} <Sparkles size={20} /></button>
         {error && <p className="dialog-note" role="alert">{error}</p>}
         {evidence && <p className="dialog-note" role="status">Sequence #{evidence.sequence_number} · {evidence.message_bytes} bytes · {evidence.payer_account_id}</p>}
         <p className="dialog-note">You can Shout again. Your latest HCS-confirmed Shout becomes current for this Room; this wallet rule is not proof of one human, one vote.</p>
@@ -616,7 +621,7 @@ function ProfileView({ onRoomsChanged }: { onRoomsChanged: () => void }) {
     catch (error) { setDemoRooms((current) => ({ status: "error", rooms: current.rooms, message: error instanceof Error ? error.message : "Demo Rooms unavailable." })); }
   }
 
-  useEffect(() => { void refreshDemoRooms(); void import("./hedera-wallet").then(({ getLinkedHashPackAccount }) => getLinkedHashPackAccount()).then((account) => setWalletAccount(account?.accountId ?? null)); }, []);
+  useEffect(() => { void refreshDemoRooms(); void getLinkedHashPackAccount().then((account) => setWalletAccount(account?.accountId ?? null)); }, []);
 
   async function handleCreateDemoRoom() {
     setDemoRooms((current) => ({ status: "working", rooms: current.rooms }));

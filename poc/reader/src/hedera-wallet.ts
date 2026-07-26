@@ -86,7 +86,7 @@ export async function requireHashPackAccount() {
     }
   }
   if (!account) {
-    void wallet.appKit.open({ view: "Connect" });
+    await wallet.appKit.open({ view: "Connect" });
     account = await waitForAccount(wallet.provider);
   }
   if (!account) throw new Error("Connect a HashPack testnet account, then press Send again.");

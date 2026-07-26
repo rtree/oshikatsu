@@ -107,8 +107,11 @@ h1, h2 { font-family: "Barlow Condensed", "Noto Sans JP", sans-serif; letter-spa
 .work-copy, .work-actions { position: relative; z-index: 2; padding-inline: 20px; }
 .work-copy { padding-bottom: 18px; }
 .work-copy h1 { max-width: 620px; margin-bottom: 6px; font-size: clamp(3rem, 12vw, 6rem); line-height: .88; text-transform: uppercase; }
-.work-copy > p:not(.kicker) { color: #d6cede; }
+.work-intro > p:not(.kicker) { color: #d6cede; }
 .work-copy .participant-bio { max-width: 620px; color: #f1e8cf; line-height: 1.55; }
+.special-room-page .special-intro { position: absolute; z-index: 3; top: clamp(28px, 5vh, 64px); left: 20px; right: 20px; max-width: 650px; padding: 12px; background: linear-gradient(90deg, rgba(5,2,11,.68), rgba(5,2,11,.08)); text-shadow: 0 2px 18px #000; }
+.special-room-page .special-intro h1 { max-width: 620px; margin-bottom: 6px; font-size: clamp(3rem, 12vw, 6rem); line-height: .88; text-transform: uppercase; }
+.special-room-page .special-intro > p:not(.kicker) { color: #f1e8cf; line-height: 1.55; }
 .participant-profile { max-width: 650px; margin-top: 18px; padding: 16px; border: 1px solid rgba(247,203,96,.36); background: rgba(5,2,11,.82); backdrop-filter: blur(12px); }
 .participant-profile-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--outline); }
 .participant-profile-heading > div { display: flex; align-items: baseline; gap: 10px; }
@@ -131,6 +134,8 @@ h1, h2 { font-family: "Barlow Condensed", "Noto Sans JP", sans-serif; letter-spa
 .room-facts span { display: flex; align-items: center; gap: 6px; }
 .room-facts .deadline { color: var(--gold); font-variant-numeric: tabular-nums; }
 .room-facts .deadline.closed { color: var(--muted); }
+.room-page:not(.special-room-page) .room-facts .deadline { flex: 1 0 100%; margin-top: 6px; color: #fff; font: 800 clamp(2rem, 8vw, 3rem)/1 "Barlow Condensed"; text-shadow: 0 2px 18px #000; }
+.room-page:not(.special-room-page) .room-facts .deadline svg { width: 24px; height: 24px; color: var(--gold); }
 .read-link { display: inline-flex; align-items: center; gap: 8px; color: var(--cyan); font-size: .82rem; font-weight: 700; text-decoration: none; }
 .work-actions { display: grid; gap: 10px; padding-bottom: 28px; }
 .secondary-action { min-height: 46px; border: 1px solid var(--outline); border-radius: 4px; background: rgba(255,255,255,.05); font-weight: 700; }
@@ -148,6 +153,7 @@ h1, h2 { font-family: "Barlow Condensed", "Noto Sans JP", sans-serif; letter-spa
 .shout-row.late { border-color: #777; background: rgba(255,255,255,.025); color: #999; }
 .shout-row.late img { filter: grayscale(1); opacity: .6; }
 .shout-cover { width: 46px; height: 62px; border-radius: 3px; object-fit: cover; }
+.special-room-page .shout-cover { height: 54px; border-radius: 50%; object-position: center 24%; }
 .shout-content { min-width: 0; }
 .shout-content > span { display: block; margin-bottom: 3px; color: var(--muted); font-size: .6rem; }
 .shout-row.late .shout-content > span { color: #aaa; font-weight: 800; }
@@ -323,6 +329,7 @@ h1, h2 { font-family: "Barlow Condensed", "Noto Sans JP", sans-serif; letter-spa
   .participant-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .participant-profile-heading { align-items: start; flex-direction: column; gap: 4px; }
   .special-room-page .work-stage { min-height: 1040px; }
+  .special-room-page .special-intro { top: 24px; }
   .demo-room-tools .section-heading { align-items: stretch; flex-direction: column; }
   .demo-room-tools .primary-action { width: 100%; }
   .demo-room-list article { align-items: stretch; flex-direction: column; }

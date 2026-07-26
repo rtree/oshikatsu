@@ -194,7 +194,8 @@ export async function prepareGroove(input: z.infer<typeof groovePrepareSchema>) 
   const room = await getRoom(input.room_id);
   if (!room) throw new Error("Room not found.");
   await requireActiveRoom(room.id);
-  if (room.phase !== "LIVE") throw new Error("Room is not live.");
+  const demoRoom = await isDemoRoom(room.id);
+  if (room.phase !== "LIVE" && !(demoRoom && room.phase === "CLOSED")) throw new Error("Room is not live.");
   if (!room.works.some((work) => work.id === input.work_id)) throw new Error("Work is not in this Room.");
   if (input.shout === undefined) throw new Error("A Shout is required for the demo vote.");
   await requireDemoWorldGrant(room.id, room.manifest_hash, input.account_id);
