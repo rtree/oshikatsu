@@ -105,6 +105,40 @@ export type BallotEventV2 = {
   d: string; u: string; b: string; h: string; e: string;
 };
 
+export type BallotUpdateEventInput = {
+  roomId: string;
+  manifestHash: string;
+  capabilityEventHash: string;
+  accountId: string;
+  nomineeIds: [string, string, string];
+};
+
+export type BallotWithdrawEventInput = Omit<BallotUpdateEventInput, "nomineeIds">;
+
+export type BallotSealEventInput = {
+  roomId: string;
+  manifestHash: string;
+  authorityAccountId: string;
+  deadline: string;
+  cutoffSequence: number;
+  policyId: string;
+  resultHash: string;
+};
+
+export type BallotUpdateEvent = {
+  v: 1; t: "u"; r: string; m: string; c: string; a: string;
+  n: [string, string, string]; e: string;
+};
+
+export type BallotWithdrawEvent = {
+  v: 1; t: "w"; r: string; m: string; c: string; a: string; e: string;
+};
+
+export type BallotSealEvent = {
+  v: 1; t: "z"; r: string; m: string; a: string; d: string;
+  q: number; p: string; x: string; e: string;
+};
+
 function fail(message: string): never {
   throw new Error(message);
 }
@@ -344,4 +378,97 @@ export function decodeBallotEventV2(bytes: Uint8Array): BallotEventV2 {
   if (canonical.e !== event.e) fail("Event hash is invalid.");
   if (!Buffer.from(encodeBallotEventV2(input)).equals(Buffer.from(bytes))) fail("Event JSON is not canonical.");
   return canonical;
+}
+
+function validateLifecycleBinding(input: BallotWithdrawEventInput) {
+  if (!ID_PATTERN.test(input.roomId) || !ACCOUNT_PATTERN.test(input.accountId)) fail("Ballot lifecycle identity binding is invalid.");
+  if (!HASH_PATTERN.test(input.manifestHash) || !HASH_PATTERN.test(input.capabilityEventHash)) fail("Ballot lifecycle hash binding is invalid.");
+}
+
+function validateLifecycleNominees(nomineeIds: [string, string, string]) {
+  if (nomineeIds.some((id) => !ID_PATTERN.test(id)) || new Set(nomineeIds).size !== 3) fail("Ballot update requires three distinct nominees.");
+}
+
+export function createBallotUpdateEvent(input: BallotUpdateEventInput): BallotUpdateEvent {
+  validateLifecycleBinding(input);
+  validateLifecycleNominees(input.nomineeIds);
+  const body = { v: 1 as const, t: "u" as const, r: input.roomId, m: input.manifestHash, c: input.capabilityEventHash, a: input.accountId, n: input.nomineeIds };
+  return { ...body, e: domainHash("oshikatsu:ballot-update:v1", body) };
+}
+
+export function encodeBallotUpdateEvent(input: BallotUpdateEventInput) {
+  const bytes = encoder.encode(canonicalJson(createBallotUpdateEvent(input)));
+  if (bytes.length > MAX_EVENT_BYTES) fail(`Event is ${bytes.length} bytes; maximum is 900.`);
+  return bytes;
+}
+
+export function decodeBallotUpdateEvent(bytes: Uint8Array): BallotUpdateEvent {
+  const value = decodeLifecycleJson(bytes);
+  assertKeys(value, ["v", "t", "r", "m", "c", "a", "n", "e"]);
+  if (value.v !== 1 || value.t !== "u" || !Array.isArray(value.n) || value.n.length !== 3 || typeof value.e !== "string") fail("Ballot update shape is invalid.");
+  const input: BallotUpdateEventInput = { roomId: String(value.r), manifestHash: String(value.m), capabilityEventHash: String(value.c), accountId: String(value.a), nomineeIds: value.n.map(String) as [string, string, string] };
+  const canonical = createBallotUpdateEvent(input);
+  assertCanonicalLifecycle(bytes, canonical, encodeBallotUpdateEvent(input));
+  return canonical;
+}
+
+export function createBallotWithdrawEvent(input: BallotWithdrawEventInput): BallotWithdrawEvent {
+  validateLifecycleBinding(input);
+  const body = { v: 1 as const, t: "w" as const, r: input.roomId, m: input.manifestHash, c: input.capabilityEventHash, a: input.accountId };
+  return { ...body, e: domainHash("oshikatsu:ballot-withdraw:v1", body) };
+}
+
+export function encodeBallotWithdrawEvent(input: BallotWithdrawEventInput) {
+  const bytes = encoder.encode(canonicalJson(createBallotWithdrawEvent(input)));
+  if (bytes.length > MAX_EVENT_BYTES) fail(`Event is ${bytes.length} bytes; maximum is 900.`);
+  return bytes;
+}
+
+export function decodeBallotWithdrawEvent(bytes: Uint8Array): BallotWithdrawEvent {
+  const value = decodeLifecycleJson(bytes);
+  assertKeys(value, ["v", "t", "r", "m", "c", "a", "e"]);
+  if (value.v !== 1 || value.t !== "w" || typeof value.e !== "string") fail("Ballot withdraw shape is invalid.");
+  const input: BallotWithdrawEventInput = { roomId: String(value.r), manifestHash: String(value.m), capabilityEventHash: String(value.c), accountId: String(value.a) };
+  const canonical = createBallotWithdrawEvent(input);
+  assertCanonicalLifecycle(bytes, canonical, encodeBallotWithdrawEvent(input));
+  return canonical;
+}
+
+export function createBallotSealEvent(input: BallotSealEventInput): BallotSealEvent {
+  if (!ID_PATTERN.test(input.roomId) || !ID_PATTERN.test(input.policyId) || !ACCOUNT_PATTERN.test(input.authorityAccountId)) fail("Ballot SEAL identity binding is invalid.");
+  if (!HASH_PATTERN.test(input.manifestHash) || !HASH_PATTERN.test(input.resultHash)) fail("Ballot SEAL hash binding is invalid.");
+  if (!/^(0|[1-9]\d*)\.\d{9}$/.test(input.deadline)) fail("Ballot SEAL deadline must be a Hedera timestamp.");
+  if (!Number.isSafeInteger(input.cutoffSequence) || input.cutoffSequence < 0) fail("Ballot SEAL cutoff sequence is invalid.");
+  const body = { v: 1 as const, t: "z" as const, r: input.roomId, m: input.manifestHash, a: input.authorityAccountId, d: input.deadline, q: input.cutoffSequence, p: input.policyId, x: input.resultHash };
+  return { ...body, e: domainHash("oshikatsu:ballot-seal:v1", body) };
+}
+
+export function encodeBallotSealEvent(input: BallotSealEventInput) {
+  const bytes = encoder.encode(canonicalJson(createBallotSealEvent(input)));
+  if (bytes.length > MAX_EVENT_BYTES) fail(`Event is ${bytes.length} bytes; maximum is 900.`);
+  return bytes;
+}
+
+export function decodeBallotSealEvent(bytes: Uint8Array): BallotSealEvent {
+  const value = decodeLifecycleJson(bytes);
+  assertKeys(value, ["v", "t", "r", "m", "a", "d", "q", "p", "x", "e"]);
+  if (value.v !== 1 || value.t !== "z" || typeof value.e !== "string") fail("Ballot SEAL shape is invalid.");
+  const input: BallotSealEventInput = { roomId: String(value.r), manifestHash: String(value.m), authorityAccountId: String(value.a), deadline: String(value.d), cutoffSequence: Number(value.q), policyId: String(value.p), resultHash: String(value.x) };
+  const canonical = createBallotSealEvent(input);
+  assertCanonicalLifecycle(bytes, canonical, encodeBallotSealEvent(input));
+  return canonical;
+}
+
+function decodeLifecycleJson(bytes: Uint8Array) {
+  if (bytes.length === 0 || bytes.length > MAX_EVENT_BYTES) fail("Event must contain 1-900 UTF-8 bytes.");
+  let value: unknown;
+  try { value = JSON.parse(decoder.decode(bytes)); } catch { return fail("Event is not strict UTF-8 JSON."); }
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail("Event must be an object.");
+  return value as Record<string, unknown>;
+}
+
+function assertCanonicalLifecycle(bytes: Uint8Array, canonical: { e: string }, encoded: Uint8Array) {
+  const value = JSON.parse(decoder.decode(bytes)) as { e?: unknown };
+  if (canonical.e !== value.e) fail("Event hash is invalid.");
+  if (!Buffer.from(encoded).equals(Buffer.from(bytes))) fail("Event JSON is not canonical.");
 }

@@ -2,11 +2,15 @@ import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "rea
 import {
   ArrowLeft,
   BookOpen,
+  CheckCircle2,
   Clock3,
+  HardDrive,
   Home,
   LibraryBig,
   Medal,
   MessageCircle,
+  Plus,
+  ShieldCheck,
   Sparkles,
   Trophy,
   UserRound,
@@ -198,7 +202,7 @@ export function App() {
         />
       )}
       {view === "rankings" && <RankingsView rooms={rooms} selectedRoom={selectedRoom} projectionState={projectionState} onSelectRoom={(room) => selectRoom(room, "rankings")} />}
-      {view === "shelf" && <ShelfView items={shelfItems} />}
+      {view === "shelf" && <ShelfView items={shelfItems} onRemove={(roomId, workId) => setShelfItems((current) => current.filter((item) => item.room_id !== roomId || item.id !== workId))} />}
       {view === "profile" && <ProfileView />}
 
       <BottomNav view={view} onNavigate={navigate} />
@@ -263,7 +267,7 @@ function HomeView({ roomsState, onEnterRoom, onRetry }: { roomsState: RoomsState
         ))}
       </section>
 
-      {specialRoom && <section className="special-room"><div><p className="kicker gold">SPECIAL ROOM · {formatDeadline(specialRoom.deadline)}</p><h2>{specialRoom.name}</h2><p>Support one of {specialRoom.works.length} participating teams. Your latest confirmed Shout is your current choice.</p></div><button type="button" className="ceremony-action" onClick={() => onEnterRoom(specialRoom)}>Enter the ceremony</button></section>}
+      {specialRoom && <section className="special-room" aria-labelledby="special-room-title"><img className="special-room-art" src="/assets/room-stage.webp" alt="A live audience raising glow sticks beneath floating manga artwork" /><div className="special-room-shade" /><div className="special-room-copy"><p className="kicker gold">SPECIAL ROOM · {specialRoom.phase}</p><h2 id="special-room-title">{specialRoom.name}</h2><p>Choose a participating team, add a reaction and Shout, then approve the real Hedera submission in HashPack. Your latest confirmed Shout is your current choice.</p><div className="special-room-facts"><span><UsersRound size={16} /> {specialRoom.works.length} teams</span><span><MessageCircle size={16} /> Mirror-confirmed activity</span><span><Clock3 size={16} /> Closes {formatDeadline(specialRoom.deadline)}</span></div><div className="special-team-preview" aria-label="Participating teams">{specialRoom.works.slice(0, 4).map((work) => <img src={work.cover_url} alt={work.title} key={work.id} />)}</div><button type="button" className="ceremony-action" onClick={() => onEnterRoom(specialRoom)}>Choose a team <ArrowLeft className="forward-arrow" size={18} /></button></div></section>}
     </main>
   );
 }
@@ -284,7 +288,7 @@ function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelec
   const events = projectionState.status === "ready" ? projectionState.projection.groove : [];
   const isSpecial = room.room_type === "SPECIAL_TEAM";
   return (
-    <main className="page room-page">
+    <main className={isSpecial ? "page room-page special-room-page" : "page room-page"}>
       <header className="room-header">
         <button className="icon-button" type="button" onClick={onBack} aria-label="Back to Home"><ArrowLeft /></button>
         <div><p className="kicker">{room.phase} ROOM</p><strong>{room.name}</strong></div>
@@ -309,14 +313,14 @@ function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelec
           <img className="work-art" src={work.hero_url ?? work.cover_url} alt={`${work.title} featured artwork`} />
           <div className="work-vignette" />
           <div className="work-copy">
-            <p className="kicker">NOW IN THE GROOVE</p>
+            <p className={isSpecial ? "kicker gold" : "kicker"}>{isSpecial ? "SELECTED TEAM" : "NOW IN THE GROOVE"}</p>
             <h1 id="work-title">{work.title}</h1>
             <p>{isSpecial ? "Hackathon participant" : work.chapter} · {projectionState.status === "ready" ? `${events.length} confirmed Shout${events.length === 1 ? "" : "s"}` : "Activity unavailable"}</p>
             <div className="room-facts"><span><UsersRound size={16} /> One current Shout per wallet</span><span><Clock3 size={16} /> Closes {formatDeadline(room.deadline)}</span></div>
             {!isSpecial && <a className="read-link" href={work.reading_url} target="_blank" rel="noreferrer"><BookOpen size={18} /> Read Official Chapter</a>}
           </div>
           <div className="work-actions">
-            <button className="primary-action" type="button" onClick={onOpenGroove}>Osu! <MessageCircle size={20} /></button>
+            <button className="primary-action" type="button" onClick={onOpenGroove}>{isSpecial ? "Shout for this team" : "Osu!"} <MessageCircle size={20} /></button>
             <button className={inShelf ? "secondary-action active" : "secondary-action"} type="button" onClick={onToggleShelf}>{inShelf ? "Remove from My Shelf" : "Add to My Shelf"}</button>
           </div>
         </section>
@@ -422,21 +426,22 @@ function FormalRanking({ title, entries, room }: { title: string; entries: RoomP
   return <section><h3>{title}</h3>{entries.map((entry) => { const work = room.works.find((candidate) => candidate.id === entry.nominee_id); return <div className="formal-ranking-row" key={entry.nominee_id}><strong>{entry.rank}</strong><span>{work?.title ?? entry.nominee_id}</span><em>{entry.points} pts{entry.tied ? " · tied" : ""}</em></div>;})}</section>;
 }
 
-function ShelfView({ items }: { items: ShelfItem[] }) {
+function ShelfView({ items, onRemove }: { items: ShelfItem[]; onRemove: (roomId: string, workId: string) => void }) {
   return (
-    <main className="page collection-page">
-      <header className="collection-header"><p className="kicker">MY OSHIKATSU</p><h1>My Shelf</h1><p>Your current Top 3 stays editable until the Room deadline.</p></header>
-      <section className="shelf-grid" aria-label="My Top 3">{[0,1,2].map((slot)=>{const work=items[slot];return <article className="shelf-slot" key={slot}>{work?<><img src={work.cover_url} alt={`${work.title} cover`} /><span>#{slot+1}</span><strong>{work.title}</strong><small>{work.room_name}</small></>:<div className="empty-cover"><BookOpen /></div>}</article>})}</section>
-      <section className="history-strip"><p className="kicker">LOCAL SHELF</p><h2>Your picks stay on this device</h2><p>This demo does not publish Shelf choices as votes. Only a confirmed Shout affects a Room ranking.</p></section>
+    <main className="page collection-page shelf-page">
+      <header className="collection-header shelf-header"><div><p className="kicker">MY OSHIKATSU</p><h1>My Shelf</h1><p>Keep up to three favorites from any Room on this device.</p></div><div className="shelf-capacity" aria-label={`${items.length} of 3 Shelf slots used`}><strong>{items.length}</strong><span>/ 3 saved</span></div></header>
+      <section className="shelf-grid" aria-label="My Top 3">{[0,1,2].map((slot)=>{const work=items[slot];return <article className={work ? "shelf-slot filled" : "shelf-slot empty"} key={slot}>{work?<><div className="shelf-cover"><img src={work.cover_url} alt={`${work.title} cover`} /><span>#{slot+1}</span><button type="button" onClick={() => onRemove(work.room_id, work.id)} aria-label={`Remove ${work.title} from My Shelf`}><Plus /></button></div><strong>{work.title}</strong><small>{work.room_name}</small></>:<><div className="empty-cover"><img src="/assets/room-stage.webp" alt="" /><span><Plus /><b>Open slot</b></span></div><strong>Pick from a Room</strong><small>Use Add to My Shelf</small></>}</article>})}</section>
+      <section className="history-strip shelf-local-note"><HardDrive /><div><p className="kicker">LOCAL SHELF</p><h2>Saved only in this browser</h2><p>Shelf picks are not protocol data and never affect Room rankings. Only a Mirror-confirmed Shout is counted.</p></div></section>
     </main>
   );
 }
 
 function ProfileView() {
   return (
-    <main className="page collection-page">
-      <header className="profile-hero"><div className="profile-avatar">?</div><div><p className="kicker">PROFILE</p><h1>No public profile yet</h1><p>This demo does not publish wallet identity, badges, participation totals, or personal activity.</p></div></header>
-      <section className="profile-empty"><UserRound /><div><p className="kicker">HONEST EMPTY STATE</p><h2>Your Shouts remain Room activity</h2><p>Connect HashPack only when sending a Shout. A personal history and verified achievements are outside this demo scope.</p></div></section>
+    <main className="page collection-page profile-page">
+      <header className="profile-hero"><img src="/assets/level-up.webp" alt="Manga hero surrounded by blue and magenta light" /><div className="profile-hero-shade" /><div className="profile-hero-copy"><div className="profile-avatar"><UserRound /></div><p className="kicker">READER PROFILE</p><h1>No linked identity</h1><p>Oshikatsu connects HashPack only when you choose to send a Shout. This Reader does not currently expose a personal backend profile.</p></div></header>
+      <section className="profile-status" aria-labelledby="profile-status-title"><div className="section-heading"><div><p className="kicker">AVAILABILITY</p><h2 id="profile-status-title">What this Reader knows</h2></div><ShieldCheck /></div><div className="profile-status-list"><p><CheckCircle2 /><span><strong>Local Shelf</strong><small>Stored in this browser only</small></span><b>Available</b></p><p><UserRound /><span><strong>Wallet identity</strong><small>Used transiently during Shout approval</small></span><b>Not linked</b></p><p><Medal /><span><strong>Badges and achievements</strong><small>No verified achievement backend</small></span><b>Unavailable</b></p><p><Clock3 /><span><strong>Personal Shout history</strong><small>Room activity is not assembled into a profile</small></span><b>Unavailable</b></p></div></section>
+      <section className="profile-empty"><MessageCircle /><div><p className="kicker">ROOM-FIRST ACTIVITY</p><h2>Your Shouts stay with the Room</h2><p>Confirmed events can appear in each Room's Groove Wave. This page does not infer ownership, totals, reputation, or proof of personhood from those public events.</p></div></section>
     </main>
   );
 }
