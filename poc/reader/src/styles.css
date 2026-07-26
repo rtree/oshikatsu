@@ -158,6 +158,16 @@ h1, h2 { font-family: "Barlow Condensed", "Noto Sans JP", sans-serif; letter-spa
 .ranking-row span { display: grid; gap: 3px; }
 .ranking-row small { color: var(--muted); }
 .ranking-row em { color: var(--muted); font-size: .7rem; }
+.formal-ranking { max-width: 900px; margin: 40px auto 0; padding-top: 28px; border-top: 1px solid var(--outline); }
+.formal-ranking .section-heading > span { color: var(--muted); font-size: .68rem; overflow-wrap: anywhere; }
+.formal-ranking-note, .formal-ranking-summary { color: var(--muted); font-size: .76rem; line-height: 1.6; }
+.formal-ranking-columns { display: grid; gap: 18px; }
+.formal-ranking-columns > section { padding: 16px; border: 1px solid var(--outline); background: var(--surface); }
+.formal-ranking-columns h3 { margin: 0 0 12px; font-size: 1.3rem; }
+.formal-ranking-row { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--outline); }
+.formal-ranking-row:last-child { border-bottom: 0; }
+.formal-ranking-row > strong { color: var(--cyan); }
+.formal-ranking-row > em { color: var(--muted); font-size: .72rem; }
 .shelf-grid { max-width: 900px; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin: 0 auto 24px; }
 .shelf-slot { position: relative; min-width: 0; display: grid; gap: 6px; }
 .shelf-slot img, .empty-cover { width: 100%; aspect-ratio: 8 / 11; object-fit: cover; border: 1px solid var(--outline); background: var(--surface); }
@@ -200,6 +210,7 @@ h1, h2 { font-family: "Barlow Condensed", "Noto Sans JP", sans-serif; letter-spa
   .dialog-backdrop { align-items: center; justify-items: center; }
   .groove-dialog, .ballot-dialog { width: min(760px, calc(100vw - 48px)); border: 1px solid rgba(255,67,188,.45); border-radius: 8px; }
   .bottom-nav { left: 50%; width: min(620px, calc(100% - 40px)); transform: translateX(-50%); border: 1px solid var(--outline); border-bottom: 0; border-radius: 10px 10px 0 0; }
+  .formal-ranking-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 899px) {

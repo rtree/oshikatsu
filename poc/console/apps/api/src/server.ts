@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireAdmin } from "./admin-auth.js";
 import { environment, getWorldIdEnvironment } from "./config.js";
 import { ballotPrepareSchema, ballotRequestSchema, createBallotRequest, getBallotStatus, listCapabilities, prepareBallot } from "./ballots.js";
+import { addVerificationObservation, projectBallotRankings, verificationObservationSchema } from "./ballot-projection.js";
 import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove, rankRoomWorks } from "./groove.js";
 import { archiveRoom, createAdminRoom, createRoom, createRoomSchema, getAdminRoom, getRoom, getRoomAction, listActions, listAdminRooms, listRooms, requireRoomAction, retireAction, roomIdSchema } from "./rooms.js";
 
@@ -142,6 +143,13 @@ app.delete("/api/admin/actions/:actionId", async (request, response) => {
   try { response.json(await retireAction(request.params.actionId, (request.header("if-match") ?? "").replaceAll('"', ""), request.header("x-confirm-action-id") ?? "", response.locals.adminEmail)); } catch (error) { adminError(response, error); }
 });
 
+app.post("/api/admin/ballots/:eventHash/verification-observations", async (request, response) => {
+  if (!/^[0-9a-f]{64}$/.test(request.params.eventHash)) { response.status(400).json({ error: "Invalid ballot event hash." }); return; }
+  const parsed = verificationObservationSchema.safeParse(request.body);
+  if (!parsed.success) { response.status(400).json({ error: "Invalid verification observation.", issues: parsed.error.issues }); return; }
+  try { await addVerificationObservation(request.params.eventHash, parsed.data); response.status(201).json({ accepted: true, event_hash: request.params.eventHash, report_hash: parsed.data.report_hash }); } catch (error) { adminError(response, error); }
+});
+
 app.get("/api/rooms", async (_request, response) => {
   try {
     response.json({ rooms: await listRooms() });
@@ -216,7 +224,7 @@ app.get("/api/projection/rooms/:roomId", async (request, response) => {
       groove,
       ranking: rankRoomWorks(room.id, room.works.map((work) => work.id), groove),
       confirmed_shout_count: groove.length,
-      ballot: { status: "PENDING", capabilities: await listCapabilities(room.id) },
+      ballot: { status: "OPTIMISTIC", rankings: await projectBallotRankings(room.id, room.works.map((work) => work.id)), capabilities: await listCapabilities(room.id) },
       revision: new Date().toISOString(),
     });
   } catch {

@@ -26,8 +26,33 @@ export type BallotVerificationObservation = {
 export type BallotVerificationFold = {
   status: BallotVerificationStatus;
   reasons: VerificationReason[];
+  provisional_counted: boolean;
   counted: boolean;
   capability_eligible: boolean;
+};
+
+export type RankedBallotRecord = {
+  event_hash: string;
+  payer_account_id: string;
+  nominee_ids: [string, string, string] | null;
+  sequence_number: number;
+  event_type: "INITIAL" | "UPDATE" | "WITHDRAW";
+  verification: BallotVerificationFold;
+};
+
+export type RankingPolicy = {
+  policy_id: string;
+  position_points: [number, number, number];
+};
+
+export type RankingEntry = {
+  nominee_id: string;
+  rank: number;
+  points: number;
+  first_place_count: number;
+  second_place_count: number;
+  third_place_count: number;
+  tied: boolean;
 };
 
 export function foldBallotVerification(
@@ -64,7 +89,58 @@ export function foldBallotVerification(
   return {
     status,
     reasons: deduplicatedReasons,
+    provisional_counted: status !== "INVALID",
     counted: status === "VERIFIED",
     capability_eligible: status === "VERIFIED",
   };
+}
+
+export function rankBallots(
+  nomineeIds: string[],
+  records: RankedBallotRecord[],
+  policy: RankingPolicy,
+  mode: "PROVISIONAL" | "VERIFIED",
+): RankingEntry[] {
+  const eligible = records.filter((record) =>
+    mode === "PROVISIONAL" ? record.verification.provisional_counted : record.verification.counted,
+  );
+  const currentByPayer = new Map<string, RankedBallotRecord>();
+  for (const record of [...eligible].sort((left, right) => left.sequence_number - right.sequence_number)) {
+    currentByPayer.set(record.payer_account_id, record);
+  }
+
+  const totals = new Map(nomineeIds.map((nomineeId) => [nomineeId, {
+    nominee_id: nomineeId,
+    points: 0,
+    first_place_count: 0,
+    second_place_count: 0,
+    third_place_count: 0,
+  }]));
+  for (const record of currentByPayer.values()) {
+    if (record.event_type === "WITHDRAW" || !record.nominee_ids) continue;
+    record.nominee_ids.forEach((nomineeId, index) => {
+      const entry = totals.get(nomineeId);
+      if (!entry) return;
+      entry.points += policy.position_points[index] ?? 0;
+      if (index === 0) entry.first_place_count += 1;
+      if (index === 1) entry.second_place_count += 1;
+      if (index === 2) entry.third_place_count += 1;
+    });
+  }
+
+  const manifestOrder = new Map(nomineeIds.map((nomineeId, index) => [nomineeId, index]));
+  const ordered = [...totals.values()].sort((left, right) =>
+    right.points - left.points ||
+    right.first_place_count - left.first_place_count ||
+    right.second_place_count - left.second_place_count ||
+    (manifestOrder.get(left.nominee_id) ?? 0) - (manifestOrder.get(right.nominee_id) ?? 0),
+  );
+  let rank = 1;
+  return ordered.map((entry, index) => {
+    const previous = ordered[index - 1];
+    const tiedWithPrevious = Boolean(previous && previous.points === entry.points && previous.first_place_count === entry.first_place_count && previous.second_place_count === entry.second_place_count);
+    if (index > 0 && !tiedWithPrevious) rank = index + 1;
+    const tied = ordered.some((candidate) => candidate.nominee_id !== entry.nominee_id && candidate.points === entry.points && candidate.first_place_count === entry.first_place_count && candidate.second_place_count === entry.second_place_count);
+    return { ...entry, rank, tied };
+  });
 }

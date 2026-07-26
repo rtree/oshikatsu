@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getWorldIdEnvironment } from "./config.js";
 import { getFirestore } from "./firestore.js";
 import { getRoom, requireRoomAction, roomIdSchema } from "./rooms.js";
+import { recordUnverifiedBallot } from "./ballot-projection.js";
 
 const accountIdSchema = z.string().regex(/^0\.0\.\d+$/);
 const nomineeIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{1,31}$/);
@@ -102,15 +103,23 @@ export async function getBallotStatus(prepareId: string, transactionId: string) 
   const messageResponse = await fetch(`https://testnet.mirrornode.hedera.com/api/v1/topics/${preparation.topic_id}/messages?timestamp=${tx.consensus_timestamp}`);
   const message = (await messageResponse.json() as any).messages?.[0]; const expected = Buffer.from(preparation.message_base64, "base64");
   if (!message || message.payer_account_id !== preparation.account_id || !Buffer.from(message.message, "base64").equals(expected) || (message.chunk_info && message.chunk_info.total !== 1)) return { status: "INVALID", reason: "MIRROR_EVIDENCE_MISMATCH" } as const;
-  const capability = { status: "CAPABILITY_GRANTED", room_id: preparation.room_id, account_id: preparation.account_id, nominee_ids: preparation.nominee_ids, transaction_id: transactionId, sequence_number: message.sequence_number, consensus_timestamp: message.consensus_timestamp, event_hash: preparation.event_hash, world_evidence_hash: preparation.world_evidence_hash } as const;
-  await store.runTransaction(async (transaction) => {
-    const accountRef = store.collection("ballot_capabilities").doc(`${preparation.room_id}:${preparation.account_id}`);
-    const nullifierRef = store.collection("ballot_nullifiers").doc(`${preparation.room_id}:${preparation.nullifier_commitment}`);
-    const [account, nullifier] = await Promise.all([transaction.get(accountRef), transaction.get(nullifierRef)]);
-    if ((account.exists && account.data()?.prepare_id !== prepareId) || (nullifier.exists && nullifier.data()?.prepare_id !== prepareId)) throw new Error("Ballot capability already granted.");
-    transaction.set(accountRef, { ...capability, prepare_id: prepareId }); transaction.set(nullifierRef, { prepare_id: prepareId, account_id: preparation.account_id });
-  });
-  return capability;
+  try {
+    return await recordUnverifiedBallot({
+      room_id: preparation.room_id,
+      topic_id: preparation.topic_id,
+      event_hash: preparation.event_hash,
+      payer_account_id: preparation.account_id,
+      nominee_ids: preparation.nominee_ids,
+      sequence_number: message.sequence_number,
+      consensus_timestamp: message.consensus_timestamp,
+      event_type: "INITIAL",
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("ALREADY_EXISTS")) {
+      return { status: "RECORDED_UNVERIFIED", counted: false, capability_granted: false, event_hash: preparation.event_hash, sequence_number: message.sequence_number, consensus_timestamp: message.consensus_timestamp, payer_account_id: preparation.account_id } as const;
+    }
+    throw error;
+  }
 }
 
 export async function listCapabilities(roomId: string) { const snapshot = await getFirestore().collection("ballot_capabilities").where("room_id", "==", roomId).limit(100).get(); return snapshot.docs.map((doc) => doc.data()); }

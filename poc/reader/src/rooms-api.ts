@@ -42,8 +42,26 @@ export type RoomProjection = {
   groove: ConfirmedGrooveEvent[];
   ranking: Array<{ rank: number; work_id: string; shout_count: number; tied: boolean }>;
   confirmed_shout_count: number;
-  ballot: { status: string };
+  ballot: {
+    status: string;
+    rankings: {
+      policy: { policy_id: string; position_points: [number, number, number]; binding: "PREVIEW" };
+      provisional: { label: string; includes: string[]; result_hash: string; entries: FormalRankingEntry[] };
+      verified: { label: string; includes: string[]; result_hash: string; entries: FormalRankingEntry[] };
+      summary: { recorded_unverified: number; unverifiable: number; verified: number; invalid: number };
+    };
+  };
   revision: string;
+};
+
+export type FormalRankingEntry = {
+  nominee_id: string;
+  rank: number;
+  points: number;
+  first_place_count: number;
+  second_place_count: number;
+  third_place_count: number;
+  tied: boolean;
 };
 
 function isRoom(value: unknown): value is Room {

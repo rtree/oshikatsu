@@ -386,6 +386,8 @@ function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShou
 
 function RankingsView({ rooms, selectedRoom, projectionState, onSelectRoom }: { rooms: Room[]; selectedRoom: Room | null; projectionState: ProjectionState; onSelectRoom: (room: Room) => void }) {
   const ranking = projectionState.status === "ready" ? projectionState.projection.ranking : [];
+  const formal = projectionState.status === "ready" ? projectionState.projection.ballot.rankings : null;
+  const formalRecordCount = formal ? formal.summary.recorded_unverified + formal.summary.unverifiable + formal.summary.verified + formal.summary.invalid : 0;
   return (
     <main className="page collection-page">
       <header className="collection-header"><p className="kicker">ONE WALLET · ONE SHOUT</p><h1>Rankings</h1><p>Each Room has an independent ranking built from Mirror-confirmed Shouts. This is a wallet-based demo vote.</p></header>
@@ -394,8 +396,13 @@ function RankingsView({ rooms, selectedRoom, projectionState, onSelectRoom }: { 
       {projectionState.status === "error" && <p className="room-list-status" role="alert">Ranking unavailable.</p>}
       {projectionState.status === "loading" && <p className="room-list-status" role="status">Loading Room ranking...</p>}
       {selectedRoom && projectionState.status === "ready" && <section className="ranking-preview" aria-labelledby="ranking-preview-title"><div className="section-heading"><div><p className="kicker">ROOM RESULT</p><h2 id="ranking-preview-title">Confirmed Shouts</h2></div></div>{ranking.map((entry) => { const work = selectedRoom.works.find((candidate) => candidate.id === entry.work_id); if (!work) return null; return <div className="ranking-row" key={work.id}><strong>{entry.rank}</strong><img src={work.cover_url} alt="" /><span><b>{work.title}</b><small>{entry.shout_count} Shout{entry.shout_count === 1 ? "" : "s"}</small></span><em>{entry.tied ? "Tied" : selectedRoom.phase === "LIVE" ? "Provisional" : "Final"}</em></div>;})}</section>}
+      {selectedRoom && formal && formalRecordCount > 0 && <section className="formal-ranking" aria-labelledby="formal-ranking-title"><div className="section-heading"><div><p className="kicker">FORMAL PROTOCOL PREVIEW</p><h2 id="formal-ranking-title">Provisional and verified</h2></div><span>{formal.policy.policy_id}</span></div><p className="formal-ranking-note">Provisional includes recorded or currently unverifiable ballots. Verified preview includes only historically verified ballots. The preview policy is not manifest-bound and is not a sealed result.</p><div className="formal-ranking-columns"><FormalRanking title={formal.provisional.label} entries={formal.provisional.entries} room={selectedRoom} /><FormalRanking title={formal.verified.label} entries={formal.verified.entries} room={selectedRoom} /></div><p className="formal-ranking-summary">Recorded {formal.summary.recorded_unverified} · Unverifiable {formal.summary.unverifiable} · Verified {formal.summary.verified} · Invalid {formal.summary.invalid}</p></section>}
     </main>
   );
+}
+
+function FormalRanking({ title, entries, room }: { title: string; entries: RoomProjection["ballot"]["rankings"]["provisional"]["entries"]; room: Room }) {
+  return <section><h3>{title}</h3>{entries.map((entry) => { const work = room.works.find((candidate) => candidate.id === entry.nominee_id); return <div className="formal-ranking-row" key={entry.nominee_id}><strong>{entry.rank}</strong><span>{work?.title ?? entry.nominee_id}</span><em>{entry.points} pts{entry.tied ? " · tied" : ""}</em></div>;})}</section>;
 }
 
 function ShelfView({ topThree, works }: { topThree: string[]; works: RoomWork[] }) {
