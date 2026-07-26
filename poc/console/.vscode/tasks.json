@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Validate Ballot capability fold",
+			"type": "shell",
+			"command": "export PATH=\"$HOME/.nvm/versions/node/v24.18.0/bin:$PATH\" && npm test --workspace @oshikatsu/api && npm run check --workspace @oshikatsu/api && npm run build --workspace @oshikatsu/api",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "test"
+		}
+	]
+}

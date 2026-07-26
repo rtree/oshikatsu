@@ -90,7 +90,7 @@ test("capability fold grants only verified Ballot v2 evidence in HCS order", () 
   const outcomes = foldBallotCapabilities([
     capabilityRecord({ event_hash: "b".repeat(64), payer_account_id: "0.0.2", nullifier_commitment: "2".repeat(64), sequence_number: 20 }),
     capabilityRecord({ event_hash: "a".repeat(64), sequence_number: 10 }),
-    capabilityRecord({ event_hash: "c".repeat(64), payer_account_id: "0.0.3", nullifier_commitment: "3".repeat(64), sequence_number: 5, verification: foldBallotVerification([]) }),
+    capabilityRecord({ event_hash: "c".repeat(64), sequence_number: 5, verification: foldBallotVerification([]) }),
   ]);
 
   assert.deepEqual(outcomes.map(({ event_hash, status }) => [event_hash, status]), [
