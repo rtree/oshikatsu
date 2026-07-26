@@ -67,6 +67,7 @@ h2 {
   background: #fff;
   font: inherit;
 }
+.room-field input { min-height: 44px; padding: 0 12px; border: 1px solid #8a857b; border-radius: 4px; color: #20201d; background: #fff; font: inherit; }
 
 button {
   min-height: 48px;

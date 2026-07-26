@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { decodeWorldArtifact, worldArtifactSha256 } from "@oshikatsu/protocol";
 
 const args = process.argv.slice(2);
 const apiBase = process.env.OSHIKATSU_ADMIN_API ?? "https://oshikatsu-api-m74bxsqz7a-an.a.run.app";
@@ -43,7 +44,8 @@ function usage() {
   npm run admin -- room archive <room-id> --if-match <hash> --confirm <room-id> --reason <text> [--dry-run]
   npm run admin -- action list [--room <room-id>]
   npm run admin -- action get <action-id>
-  npm run admin -- action retire <action-id> --if-match <hash> --confirm <action-id> [--dry-run]`);
+  npm run admin -- action retire <action-id> --if-match <hash> --confirm <action-id> [--dry-run]
+  npm run admin -- ballot prepare-v2 --artifact <local-file> --reference <commit-fixed-url> [--dry-run]`);
 }
 
 const [resource, command, id] = filtered;
@@ -57,6 +59,11 @@ try {
   else if (resource === "action" && command === "list") await call(`/api/admin/actions${option("--room") ? `?room_id=${encodeURIComponent(option("--room"))}` : ""}`);
   else if (resource === "action" && command === "get" && id) await call(`/api/admin/actions/${encodeURIComponent(id)}`);
   else if (resource === "action" && command === "retire" && id) await call(`/api/admin/actions/${encodeURIComponent(id)}`, { method: "DELETE", headers: { "If-Match": option("--if-match", true), "X-Confirm-Action-Id": option("--confirm", true) } });
+  else if (resource === "ballot" && command === "prepare-v2") {
+    const bytes = await readFile(option("--artifact", true));
+    decodeWorldArtifact(bytes);
+    await call("/api/admin/ballots/v2/prepare-from-artifact", { method: "POST", body: { artifact_sha256: worldArtifactSha256(bytes), artifact_reference: option("--reference", true) } });
+  }
   else usage();
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));

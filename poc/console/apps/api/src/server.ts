@@ -5,7 +5,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { requireAdmin } from "./admin-auth.js";
 import { environment, getWorldIdEnvironment } from "./config.js";
-import { ballotPrepareSchema, ballotRequestSchema, createBallotRequest, getBallotStatus, listCapabilities, prepareBallot } from "./ballots.js";
+import { ballotPrepareSchema, ballotRequestSchema, ballotV2ArtifactPrepareSchema, createBallotRequest, getBallotPreparation, getBallotStatus, listCapabilities, prepareBallot, prepareBallotV2FromArtifact } from "./ballots.js";
 import { addVerificationObservation, projectBallotRankings, verificationObservationSchema } from "./ballot-projection.js";
 import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove, rankRoomWorks } from "./groove.js";
 import { archiveRoom, createAdminRoom, createRoom, createRoomSchema, getAdminRoom, getRoom, getRoomAction, listActions, listAdminRooms, listRooms, requireRoomAction, retireAction, roomIdSchema } from "./rooms.js";
@@ -150,6 +150,12 @@ app.post("/api/admin/ballots/:eventHash/verification-observations", async (reque
   try { await addVerificationObservation(request.params.eventHash, parsed.data); response.status(201).json({ accepted: true, event_hash: request.params.eventHash, report_hash: parsed.data.report_hash }); } catch (error) { adminError(response, error); }
 });
 
+app.post("/api/admin/ballots/v2/prepare-from-artifact", async (request, response) => {
+  const parsed = ballotV2ArtifactPrepareSchema.safeParse(request.body);
+  if (!parsed.success) { response.status(400).json({ error: "Invalid Ballot v2 artifact input.", issues: parsed.error.issues }); return; }
+  try { response.status(201).json({ preparation: await prepareBallotV2FromArtifact(parsed.data) }); } catch (error) { adminError(response, error); }
+});
+
 app.get("/api/rooms", async (_request, response) => {
   try {
     response.json({ rooms: await listRooms() });
@@ -248,6 +254,10 @@ app.get("/api/ballots/status/:transactionId", async (request, response) => {
   const prepareId = typeof request.query.prepare_id === "string" ? request.query.prepare_id : "";
   if (!/^ballot-[0-9a-f]{32}$/.test(prepareId)) { response.status(400).json({ error: "A valid prepare_id is required." }); return; }
   try { response.json(await getBallotStatus(prepareId, request.params.transactionId)); } catch (error) { response.status(400).json({ error: error instanceof Error ? error.message : "Ballot status failed." }); }
+});
+
+app.get("/api/ballots/preparations/:prepareId", async (request, response) => {
+  try { const preparation = await getBallotPreparation(request.params.prepareId); if (!preparation) { response.status(404).json({ error: "Ballot preparation not found." }); return; } response.json({ preparation }); } catch (error) { operationError(response, error, "Ballot preparation failed."); }
 });
 
 app.post("/api/world-id/request", async (request, response) => {

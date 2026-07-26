@@ -26,6 +26,15 @@ export type WalletEvidence = {
   transactionId: string;
 };
 
+export type PreparedBallot = {
+  id: string;
+  topic_id: string;
+  account_id: string;
+  message_base64: string;
+  message_bytes: number;
+  event_hash: string;
+};
+
 export function createReactionEnvelope() {
   return JSON.stringify({
     v: 1,
@@ -143,4 +152,19 @@ export async function submitReaction(message: string): Promise<WalletEvidence> {
   }
 
   throw new Error("Mirror confirmation timed out. The event is not yet formal.");
+}
+
+export async function submitPreparedBallot(preparation: PreparedBallot) {
+  const bytes = Uint8Array.from(atob(preparation.message_base64), (character) => character.charCodeAt(0));
+  if (bytes.length !== preparation.message_bytes || bytes.length === 0 || bytes.length > 900) throw new Error("Prepared Ballot bytes are invalid.");
+  const wallet = await getWallet();
+  const account = wallet.provider.session?.namespaces?.hedera?.accounts?.[0];
+  if (!account?.startsWith("hedera:testnet:")) throw new Error("Connect a HashPack testnet account first.");
+  const accountId = account.slice("hedera:testnet:".length);
+  if (accountId !== preparation.account_id) throw new Error("Prepared Ballot payer does not match HashPack.");
+  void wallet.provider.rpcProviders;
+  if (!wallet.provider.nativeProvider) throw new Error("Reconnect HashPack before submitting the Ballot.");
+  const transaction = new TopicMessageSubmitTransaction().setTopicId(preparation.topic_id).setMessage(bytes).setMaxChunks(1);
+  const result = await wallet.provider.hedera_signAndExecuteTransaction({ signerAccountId: account, transactionList: transactionToBase64String(transaction) });
+  return String(result.transactionId);
 }

@@ -9,6 +9,8 @@ import {
   connectHashPack,
   createReactionEnvelope,
   submitReaction,
+  submitPreparedBallot,
+  type PreparedBallot,
   type WalletEvidence,
 } from "./hedera-wallet";
 
@@ -66,6 +68,8 @@ export function App() {
   const [nomineeIds, setNomineeIds] = useState("");
   const [walletEvidence, setWalletEvidence] = useState<WalletEvidence | null>(null);
   const [walletStatus, setWalletStatus] = useState("HashPack未接続");
+  const [ballotPrepareId, setBallotPrepareId] = useState("");
+  const [ballotReceipt, setBallotReceipt] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     void fetch("/api/rooms")
@@ -175,6 +179,36 @@ export function App() {
     }
   }
 
+  async function sendBallotV2() {
+    setError(null);
+    setBallotReceipt(null);
+    setWalletStatus("Ballot v2 preparationを取得中");
+    try {
+      const preparationResponse = await fetch(`/api/ballots/preparations/${encodeURIComponent(ballotPrepareId)}`);
+      const preparationBody = await preparationResponse.json() as { preparation?: PreparedBallot; error?: string };
+      if (!preparationResponse.ok || !preparationBody.preparation) throw new Error(preparationBody.error ?? "Ballot preparation could not be loaded.");
+      setWalletStatus("HashPackでBallot v2投稿を承認してください");
+      const transactionId = await submitPreparedBallot(preparationBody.preparation);
+      setWalletStatus("Mirror確認中。まだ票には数えません");
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const statusResponse = await fetch(`/api/ballots/status/${encodeURIComponent(transactionId)}?prepare_id=${encodeURIComponent(ballotPrepareId)}`);
+        const status = await statusResponse.json() as Record<string, unknown> & { status?: string; error?: string };
+        if (!statusResponse.ok) throw new Error(status.error ?? "Ballot status failed.");
+        if (status.status === "RECORDED_UNVERIFIED") {
+          setBallotReceipt({ ...status, transaction_id: transactionId });
+          setWalletStatus("Hedera記録済み・World historical verification待ち");
+          return;
+        }
+        if (status.status === "INVALID") throw new Error(String(status.reason ?? "Ballot is invalid."));
+        await new Promise((resolve) => setTimeout(resolve, 750));
+      }
+      throw new Error("Mirror confirmation timed out.");
+    } catch (caughtError) {
+      setWalletStatus("Ballot v2未確認");
+      setError(caughtError instanceof Error ? caughtError.message : "Ballot v2 submission failed.");
+    }
+  }
+
   return (
     <main className="shell">
       <header>
@@ -267,6 +301,7 @@ export function App() {
           </dl>
         )}
       </section>
+      {new URLSearchParams(window.location.search).get("ballot") === "v2" && <section className="wallet-section" aria-labelledby="ballot-v2-heading"><h2 id="ballot-v2-heading">Ballot v2 optimistic receipt</h2><p className="lede">Records the artifact-bound Ballot on Hedera first. It remains uncounted until later historical verification.</p><label className="room-field"><span>Preparation ID</span><input value={ballotPrepareId} onChange={(event) => setBallotPrepareId(event.target.value)} placeholder="ballot-..." /></label><button type="button" onClick={() => void sendBallotV2()} disabled={!/^ballot-[0-9a-f]{32}$/.test(ballotPrepareId)}>Submit Ballot v2</button>{ballotReceipt && <dl className="artifact"><div><dt>Status</dt><dd>{String(ballotReceipt.status)}</dd></div><div><dt>Sequence</dt><dd>{String(ballotReceipt.sequence_number)}</dd></div><div><dt>Payer</dt><dd>{String(ballotReceipt.payer_account_id)}</dd></div><div><dt>Counted</dt><dd>{String(ballotReceipt.counted)}</dd></div></dl>}</section>}
     </main>
   );
 }

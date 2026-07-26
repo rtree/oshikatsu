@@ -1,7 +1,7 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { signRequest } from "@worldcoin/idkit-server";
 import { hashSignal } from "@worldcoin/idkit-core/hashing";
-import { domainHash, encodeBallotEvent } from "@oshikatsu/protocol";
+import { decodeWorldArtifact, domainHash, encodeBallotEvent, encodeBallotEventV2, worldArtifactSha256 } from "@oshikatsu/protocol";
 import { z } from "zod";
 import { getWorldIdEnvironment } from "./config.js";
 import { getFirestore } from "./firestore.js";
@@ -25,6 +25,11 @@ export const ballotRequestSchema = z.object({
 
 export const ballotPrepareSchema = z.object({
   context_token: z.string().min(1), signal: z.string().min(1).max(512), proof: proofSchema,
+}).strict();
+
+export const ballotV2ArtifactPrepareSchema = z.object({
+  artifact_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  artifact_reference: z.string().url().max(180),
 }).strict();
 
 const contextSchema = z.object({
@@ -91,6 +96,58 @@ export async function prepareBallot(input: z.infer<typeof ballotPrepareSchema>) 
   return preparation;
 }
 
+function assertCommitFixedGitHubReference(reference: string) {
+  const url = new URL(reference);
+  const match = /^\/rtree\/oshikatsu\/([0-9a-f]{40})\/a\/([0-9a-f]{64})\.json$/.exec(url.pathname);
+  if (url.protocol !== "https:" || url.hostname !== "raw.githubusercontent.com" || !match || url.search || url.hash) {
+    throw new Error("Artifact reference must be a commit-fixed GitHub raw URL.");
+  }
+  return { commit: match[1], pathHash: match[2] };
+}
+
+export async function prepareBallotV2FromArtifact(input: z.infer<typeof ballotV2ArtifactPrepareSchema>) {
+  const reference = assertCommitFixedGitHubReference(input.artifact_reference);
+  if (reference.pathHash !== input.artifact_sha256) throw new Error("Artifact path hash mismatch.");
+  const response = await fetch(input.artifact_reference, { headers: { Accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new Error("Artifact is unavailable.");
+  const contentLength = Number(response.headers.get("content-length") ?? 0);
+  if (contentLength > 64 * 1024) throw new Error("Artifact is too large.");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length === 0 || bytes.length > 64 * 1024) throw new Error("Artifact is too large.");
+  if (worldArtifactSha256(bytes) !== input.artifact_sha256) throw new Error("Artifact digest mismatch.");
+  const artifact = decodeWorldArtifact(bytes);
+  if (artifact.proof.responses[0].signal_hash.toLowerCase() !== hashSignal(artifact.signal).toLowerCase()) throw new Error("Artifact signal hash mismatch.");
+  const room = await getRoom(artifact.room_id);
+  if (!room) throw new Error("Room not found.");
+  await requireRoomAction(room.id, "BALLOT_V1");
+  if (room.phase !== "LIVE" || room.manifest_hash !== artifact.manifest_hash || room.world_action !== artifact.action) throw new Error("Artifact Room binding mismatch.");
+  assertNominees(room.works, artifact.nominee_ids);
+  const id = `ballot-${input.artifact_sha256.slice(0, 32)}`;
+  const ballotBytes = encodeBallotEventV2({ ballotId: id, roomId: room.id, manifestHash: room.manifest_hash, nomineeIds: artifact.nominee_ids, accountId: artifact.account_id, artifactHash: input.artifact_sha256, artifactReference: input.artifact_reference, worldBlockNumber: artifact.anchor.block_number, worldBlockHash: artifact.anchor.block_hash });
+  const event = JSON.parse(new TextDecoder().decode(ballotBytes)) as { e: string };
+  const preparation = { id, version: 2, room_id: room.id, nominee_ids: artifact.nominee_ids, topic_id: room.topic_id, account_id: artifact.account_id, artifact_sha256: input.artifact_sha256, artifact_reference: input.artifact_reference, world_block_number: artifact.anchor.block_number, world_block_hash: artifact.anchor.block_hash, message_base64: Buffer.from(ballotBytes).toString("base64"), message_bytes: ballotBytes.length, event_hash: event.e, expires_at: new Date(Date.now() + 30 * 60_000).toISOString() };
+  const referenceDocument = getFirestore().collection("ballot_preparations").doc(id);
+  await getFirestore().runTransaction(async (transaction) => {
+    const existing = await transaction.get(referenceDocument);
+    if (existing.exists) {
+      const data = existing.data() as typeof preparation;
+      if (data.artifact_sha256 !== input.artifact_sha256 || data.artifact_reference !== input.artifact_reference) throw new Error("Artifact preparation conflict.");
+      return;
+    }
+    transaction.create(referenceDocument, preparation);
+  });
+  return (await referenceDocument.get()).data() as typeof preparation;
+}
+
+export async function getBallotPreparation(id: string) {
+  if (!/^ballot-[0-9a-f]{32}$/.test(id)) throw new Error("Invalid ballot preparation id.");
+  const snapshot = await getFirestore().collection("ballot_preparations").doc(id).get();
+  if (!snapshot.exists) return null;
+  const preparation = snapshot.data() as Record<string, unknown>;
+  if (typeof preparation.expires_at !== "string" || Date.parse(preparation.expires_at) < Date.now()) throw new Error("Ballot preparation expired.");
+  return preparation;
+}
+
 function transactionKey(id: string) { const match = /^(0\.0\.\d+)[@-](\d+)[.-](\d+)$/.exec(decodeURIComponent(id)); if (!match) throw new Error("Invalid Hedera transaction id."); return `${match[1]}-${match[2]}-${match[3]}`; }
 
 export async function getBallotStatus(prepareId: string, transactionId: string) {
@@ -113,6 +170,7 @@ export async function getBallotStatus(prepareId: string, transactionId: string) 
       sequence_number: message.sequence_number,
       consensus_timestamp: message.consensus_timestamp,
       event_type: "INITIAL",
+      ...(preparation.version === 2 ? { artifact_sha256: preparation.artifact_sha256, artifact_reference: preparation.artifact_reference, world_block_number: preparation.world_block_number, world_block_hash: preparation.world_block_hash } : {}),
     });
   } catch (error) {
     if (error instanceof Error && error.message.includes("ALREADY_EXISTS")) {
