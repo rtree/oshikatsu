@@ -20,6 +20,63 @@ export type RebuildBallotCapabilityInput = {
   verification_observations: BallotVerificationObservation[];
 };
 
+export type PublicCapabilityRebuildInput = {
+  mirror_base_url?: string;
+  topic_id: string;
+  sequence_number: number;
+  verification_observations: BallotVerificationObservation[];
+};
+
+type FetchResponse = {
+  ok: boolean;
+  status: number;
+  arrayBuffer(): Promise<ArrayBuffer>;
+  json(): Promise<unknown>;
+};
+
+type FetchLike = (url: string) => Promise<FetchResponse>;
+
+function parseMirrorMessage(value: unknown): MirrorBallotMessage {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Mirror ballot response is invalid.");
+  }
+  const message = value as Record<string, unknown>;
+  const chunkInfo = message.chunk_info as Record<string, unknown> | null | undefined;
+  return {
+    message_bytes: Buffer.from(String(message.message), "base64"),
+    payer_account_id: String(message.payer_account_id),
+    sequence_number: Number(message.sequence_number),
+    consensus_timestamp: String(message.consensus_timestamp),
+    chunk_total: chunkInfo ? Number(chunkInfo.total) : 1,
+  };
+}
+
+export async function rebuildBallotCapabilityFromPublicSources(
+  input: PublicCapabilityRebuildInput,
+  fetcher: FetchLike = fetch,
+): Promise<CapabilityBallotRecord> {
+  if (!/^0\.0\.\d+$/.test(input.topic_id) ||
+      !Number.isSafeInteger(input.sequence_number) || input.sequence_number < 1) {
+    throw new Error("Public capability rebuild target is invalid.");
+  }
+  const mirrorBaseUrl = (input.mirror_base_url ?? "https://testnet.mirrornode.hedera.com").replace(/\/$/, "");
+  const mirrorResponse = await fetcher(`${mirrorBaseUrl}/api/v1/topics/${input.topic_id}/messages/${input.sequence_number}`);
+  if (!mirrorResponse.ok) throw new Error(`Mirror ballot fetch failed with HTTP ${mirrorResponse.status}.`);
+  const mirror = parseMirrorMessage(await mirrorResponse.json());
+  if (mirror.sequence_number !== input.sequence_number) throw new Error("Mirror ballot sequence is invalid.");
+
+  const artifactReference = decodeBallotEventV2(mirror.message_bytes).u;
+  const artifactResponse = await fetcher(artifactReference);
+  if (!artifactResponse.ok) throw new Error(`Ballot artifact fetch failed with HTTP ${artifactResponse.status}.`);
+  const artifactBytes = new Uint8Array(await artifactResponse.arrayBuffer());
+  return rebuildBallotCapability({
+    mirror,
+    artifact_bytes: artifactBytes,
+    artifact_reference: artifactReference,
+    verification_observations: input.verification_observations,
+  });
+}
+
 export function rebuildBallotCapability(
   input: RebuildBallotCapabilityInput,
 ): CapabilityBallotRecord {

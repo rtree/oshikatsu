@@ -24,6 +24,13 @@ export type GrooveStatus =
       event_hash: string;
     };
 
+export class GrooveConfirmationTimeoutError extends Error {
+  constructor() {
+    super("Mirror confirmation timed out. Retry confirmation without submitting another Shout.");
+    this.name = "GrooveConfirmationTimeoutError";
+  }
+}
+
 async function jsonRequest<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...options,
@@ -58,5 +65,5 @@ export async function waitForGrooveConfirmation(preparationId: string, transacti
     if (status.status === "INVALID") throw new Error(`Mirror rejected the event: ${status.reason}.`);
     await new Promise((resolve) => setTimeout(resolve, 750));
   }
-  throw new Error("Mirror confirmation timed out. The event is not yet formal.");
+  throw new GrooveConfirmationTimeoutError();
 }

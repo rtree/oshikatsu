@@ -108,6 +108,18 @@ function transactionKey(transactionId: string) {
   throw new Error("Invalid Hedera transaction id.");
 }
 
+export function isConsensusWithinPreparation(
+  preparation: Pick<GroovePreparation, "created_at" | "expires_at">,
+  consensusTimestamp: string,
+) {
+  const match = /^(\d+)\.(\d{1,9})$/.exec(consensusTimestamp);
+  if (!match) return false;
+  const consensusNanoseconds = BigInt(match[1]) * 1_000_000_000n + BigInt(match[2].padEnd(9, "0"));
+  const createdNanoseconds = BigInt(Date.parse(preparation.created_at)) * 1_000_000n;
+  const expiresNanoseconds = BigInt(Date.parse(preparation.expires_at)) * 1_000_000n;
+  return consensusNanoseconds >= createdNanoseconds && consensusNanoseconds <= expiresNanoseconds;
+}
+
 export async function prepareGroove(input: z.infer<typeof groovePrepareSchema>) {
   const room = await getRoom(input.room_id);
   if (!room) throw new Error("Room not found.");
@@ -148,9 +160,6 @@ export async function getGrooveStatus(prepareId: string, transactionId: string) 
   const snapshot = await getFirestore().collection("groove_preparations").doc(prepareId).get();
   if (!snapshot.exists) throw new Error("Groove preparation not found.");
   const preparation = snapshot.data() as GroovePreparation;
-  if (Date.parse(preparation.expires_at) < Date.now()) {
-    return { status: "INVALID", reason: "PREPARATION_EXPIRED" } as const;
-  }
 
   const expectedTransaction = transactionKey(transactionId);
   const transactionResponse = await fetch(
@@ -168,6 +177,9 @@ export async function getGrooveStatus(prepareId: string, transactionId: string) 
   if (!transaction) return { status: "INVALID", reason: "TRANSACTION_NOT_SUCCESSFUL" } as const;
   if (transaction.entity_id !== preparation.topic_id) {
     return { status: "INVALID", reason: "TRANSACTION_TOPIC_MISMATCH" } as const;
+  }
+  if (!isConsensusWithinPreparation(preparation, transaction.consensus_timestamp)) {
+    return { status: "INVALID", reason: "TRANSACTION_OUTSIDE_PREPARATION_WINDOW" } as const;
   }
 
   const messageResponse = await fetch(

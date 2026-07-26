@@ -34,3 +34,6 @@ ui-debug.log*
 .idea/
 /.vscode/settings.json
 *.swp
+
+# Generated design mock sources
+imggen/

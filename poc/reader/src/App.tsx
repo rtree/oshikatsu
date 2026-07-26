@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type Room, type RoomProjection, type RoomWork } from "./rooms-api";
-import { prepareGroove, waitForGrooveConfirmation, type GrooveStatus } from "./groove-api";
+import { GrooveConfirmationTimeoutError, prepareGroove, waitForGrooveConfirmation, type GrooveStatus } from "./groove-api";
 
 type View = "home" | "room" | "rankings" | "shelf" | "profile";
 
@@ -34,6 +34,7 @@ type ProjectionState =
   | { status: "error" };
 
 type ShelfItem = RoomWork & { room_id: string; room_name: string };
+type PendingGrooveConfirmation = { preparationId: string; transactionId: string; roomId: string };
 
 const shelfStorageKey = "oshikatsu-reader-shelf-v1";
 
@@ -58,6 +59,71 @@ const reactions = [
   { id: "losing", icon: "/assets/ico20.webp", label: "I'm Losing It", count: "5,430" },
 ];
 
+type SpecialParticipant = {
+  name: string;
+  role: string;
+  level: number;
+  specialty: string;
+  bio: string;
+  image: string;
+  stats: Array<{ label: string; value: string }>;
+  discoveries: Array<{ title: string; image: string }>;
+};
+
+const specialParticipants: Record<string, SpecialParticipant> = {
+  "oshikatsu-team": {
+    name: "Mina Kurose",
+    role: "Community Builder",
+    level: 31,
+    specialty: "Hidden-gem curator",
+    bio: "Creates welcoming spaces where readers can discover stories and celebrate their passion together.",
+    image: "/assets/special-participant-01.webp",
+    stats: [
+      { label: "Titles discovered", value: "24" },
+      { label: "Reviews published", value: "182" },
+      { label: "Readers reached", value: "1,842" },
+      { label: "Active days", value: "162" },
+    ],
+    discoveries: [
+      { title: "Midnight Awakening", image: "/assets/sample01.webp" },
+      { title: "Ember Archive", image: "/assets/sample02.webp" },
+      { title: "Blue Signal", image: "/assets/sample03.webp" },
+    ],
+  },
+  "issue-18-team": {
+    name: "Ren Asakura",
+    role: "Protocol Builder",
+    level: 28,
+    specialty: "Evidence-driven reviewer",
+    bio: "Builds verifiable public infrastructure so every participant vote can be inspected and replayed.",
+    image: "/assets/special-participant-02.webp",
+    stats: [
+      { label: "Titles discovered", value: "19" },
+      { label: "Reviews published", value: "143" },
+      { label: "Readers reached", value: "1,260" },
+      { label: "Active days", value: "118" },
+    ],
+    discoveries: [
+      { title: "Reader's Horizon", image: "/assets/sample04.webp" },
+      { title: "The Last Returner", image: "/assets/sample05.webp" },
+      { title: "Midnight Awakening", image: "/assets/sample01.webp" },
+    ],
+  },
+};
+
+function participantFor(work: RoomWork) {
+  return specialParticipants[work.id] ?? {
+    name: work.title,
+    role: "Finalist",
+    level: 1,
+    specialty: "Community nominee",
+    bio: "A participating finalist in this Special Room.",
+    image: work.cover_url,
+    stats: [],
+    discoveries: [],
+  };
+}
+
 function formatDeadline(deadline: string) {
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
@@ -80,6 +146,7 @@ export function App() {
   const [grooveState, setGrooveState] = useState<"idle" | "connecting" | "preparing" | "approving" | "confirming" | "confirmed">("idle");
   const [grooveError, setGrooveError] = useState<string | null>(null);
   const [grooveEvidence, setGrooveEvidence] = useState<Extract<GrooveStatus, { status: "CONFIRMED" }> | null>(null);
+  const [pendingGrooveConfirmation, setPendingGrooveConfirmation] = useState<PendingGrooveConfirmation | null>(null);
   const [shelfItems, setShelfItems] = useState<ShelfItem[]>(loadShelf);
   const rooms = roomsState.status === "ready" ? roomsState.rooms : [];
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
@@ -155,7 +222,27 @@ export function App() {
     }
   }
 
+  async function confirmSubmittedGroove(pending: PendingGrooveConfirmation) {
+    try {
+      setGrooveError(null);
+      setGrooveState("confirming");
+      const evidence = await waitForGrooveConfirmation(pending.preparationId, pending.transactionId);
+      setPendingGrooveConfirmation(null);
+      setGrooveEvidence(evidence);
+      setGrooveState("confirmed");
+      await loadProjection(pending.roomId);
+    } catch (error) {
+      if (!(error instanceof GrooveConfirmationTimeoutError)) setPendingGrooveConfirmation(null);
+      setGrooveError(error instanceof Error ? error.message : "Shout confirmation failed.");
+      setGrooveState("idle");
+    }
+  }
+
   async function submitGroove() {
+    if (pendingGrooveConfirmation) {
+      await confirmSubmittedGroove(pendingGrooveConfirmation);
+      return;
+    }
     if (!selectedRoom || !selectedWork) return;
     setGrooveError(null);
     setGrooveEvidence(null);
@@ -173,11 +260,9 @@ export function App() {
       });
       setGrooveState("approving");
       const transactionId = await submitPreparedGroove(preparation, account.signerAccountId);
-      setGrooveState("confirming");
-      const evidence = await waitForGrooveConfirmation(preparation.id, transactionId);
-      setGrooveEvidence(evidence);
-      setGrooveState("confirmed");
-      await loadProjection(selectedRoom.id);
+      const pending = { preparationId: preparation.id, transactionId, roomId: selectedRoom.id };
+      setPendingGrooveConfirmation(pending);
+      await confirmSubmittedGroove(pending);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Shout submission failed.";
       setGrooveError(message);
@@ -219,6 +304,7 @@ export function App() {
           state={grooveState}
           error={grooveError}
           evidence={grooveEvidence}
+          retryConfirmation={pendingGrooveConfirmation !== null}
         />
       )}
     </div>
@@ -231,7 +317,7 @@ function HomeView({ roomsState, onEnterRoom, onRetry }: { roomsState: RoomsState
   return (
     <main className="page home-page">
       <header className="brand-bar">
-        <div><span className="brand-mark">O</span><strong>Oshikatsu</strong></div>
+        <img className="brand-logo" src="/assets/01_title.png" alt="Oshikatsu - Manga x Otaku x Love" />
         <a className="account-pill" href="https://ethglobal-lisbon2026-oshikatsu.web.app/?wallet-test=1"><span className="live-dot" /> Start My Oshikatsu</a>
       </header>
 
@@ -267,7 +353,7 @@ function HomeView({ roomsState, onEnterRoom, onRetry }: { roomsState: RoomsState
         ))}
       </section>
 
-      {specialRoom && <section className="special-room" aria-labelledby="special-room-title"><img className="special-room-art" src="/assets/room-stage.webp" alt="A live audience raising glow sticks beneath floating manga artwork" /><div className="special-room-shade" /><div className="special-room-copy"><p className="kicker gold">SPECIAL ROOM · {specialRoom.phase}</p><h2 id="special-room-title">{specialRoom.name}</h2><p>Choose a participating team, add a reaction and Shout, then approve the real Hedera submission in HashPack. Your latest confirmed Shout is your current choice.</p><div className="special-room-facts"><span><UsersRound size={16} /> {specialRoom.works.length} teams</span><span><MessageCircle size={16} /> Mirror-confirmed activity</span><span><Clock3 size={16} /> Closes {formatDeadline(specialRoom.deadline)}</span></div><div className="special-team-preview" aria-label="Participating teams">{specialRoom.works.slice(0, 4).map((work) => <img src={work.cover_url} alt={work.title} key={work.id} />)}</div><button type="button" className="ceremony-action" onClick={() => onEnterRoom(specialRoom)}>Choose a team <ArrowLeft className="forward-arrow" size={18} /></button></div></section>}
+      {specialRoom && <section className="special-room" aria-labelledby="special-room-title"><img className="special-room-art" src="/assets/room-stage.webp" alt="A live audience raising glow sticks at a finalist ceremony" /><div className="special-room-shade" /><div className="special-room-copy"><p className="kicker gold">PARTICIPANT VOTE · {specialRoom.phase}</p><h2 id="special-room-title">{specialRoom.name}</h2><p>Meet the finalists and vote for the person you want to support. Your latest Mirror-confirmed Shout is your current participant vote.</p><div className="special-room-facts"><span><UsersRound size={16} /> {specialRoom.works.length} finalists</span><span><MessageCircle size={16} /> Public Hedera vote</span><span><Clock3 size={16} /> Closes {formatDeadline(specialRoom.deadline)}</span></div><div className="special-team-preview" aria-label="Participating finalists">{specialRoom.works.slice(0, 4).map((work) => { const participant = participantFor(work); return <figure key={work.id}><img src={participant.image} alt={participant.name} /><figcaption><strong>{participant.name}</strong><span>{participant.role}</span></figcaption></figure>; })}</div><button type="button" className="ceremony-action" onClick={() => onEnterRoom(specialRoom)}>Meet the finalists <ArrowLeft className="forward-arrow" size={18} /></button></div></section>}
     </main>
   );
 }
@@ -287,6 +373,7 @@ type RoomViewProps = {
 function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelectWork, onOpenGroove, onToggleShelf, inShelf }: RoomViewProps) {
   const events = projectionState.status === "ready" ? projectionState.projection.groove : [];
   const isSpecial = room.room_type === "SPECIAL_TEAM";
+  const selectedParticipant = participantFor(work);
   return (
     <main className={isSpecial ? "page room-page special-room-page" : "page room-page"}>
       <header className="room-header">
@@ -297,31 +384,37 @@ function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelec
 
       <div className="room-layout">
         <aside className="lineup-panel" aria-labelledby="lineup-title">
-          <div className="panel-heading"><div><p className="kicker">LINEUP LOCKED</p><h2 id="lineup-title">{isSpecial ? "Participating Teams" : "Tonight's Lineup"}</h2></div><span>{room.works.length} {isSpecial ? "teams" : "works"}</span></div>
+          <div className="panel-heading"><div><p className="kicker">{isSpecial ? "FINALISTS" : "LINEUP LOCKED"}</p><h2 id="lineup-title">{isSpecial ? "Participant Vote" : "Tonight's Lineup"}</h2></div><span>{room.works.length} {isSpecial ? "people" : "works"}</span></div>
           <div className="lineup-list">
-            {room.works.map((item, index) => (
+            {room.works.map((item, index) => { const participant = participantFor(item); return (
               <button className={item.id === selectedWorkId ? "lineup-item selected" : "lineup-item"} type="button" key={item.id} onClick={() => onSelectWork(item.id)}>
                 <span className="lineup-rank">{String(index + 1).padStart(2, "0")}</span>
-                <img src={item.cover_url} alt={`${item.title} cover`} />
-                <span><strong>{item.title}</strong><small>{item.chapter}</small></span>
+                <img src={isSpecial ? participant.image : item.cover_url} alt={isSpecial ? participant.name : `${item.title} cover`} />
+                <span><strong>{isSpecial ? participant.name : item.title}</strong><small>{isSpecial ? participant.role : item.chapter}</small></span>
               </button>
-            ))}
+            ); })}
           </div>
         </aside>
 
         <section className="work-stage" aria-labelledby="work-title">
-          <img className="work-art" src={work.hero_url ?? work.cover_url} alt={`${work.title} featured artwork`} />
+          <img className="work-art" src={isSpecial ? selectedParticipant.image : work.hero_url ?? work.cover_url} alt={isSpecial ? `${selectedParticipant.name}, participant finalist` : `${work.title} featured artwork`} />
           <div className="work-vignette" />
           <div className="work-copy">
-            <p className={isSpecial ? "kicker gold" : "kicker"}>{isSpecial ? "SELECTED TEAM" : "NOW IN THE GROOVE"}</p>
-            <h1 id="work-title">{work.title}</h1>
-            <p>{isSpecial ? "Hackathon participant" : work.chapter} · {projectionState.status === "ready" ? `${events.length} confirmed Shout${events.length === 1 ? "" : "s"}` : "Activity unavailable"}</p>
+            <p className={isSpecial ? "kicker gold" : "kicker"}>{isSpecial ? "SELECTED FINALIST" : "NOW IN THE GROOVE"}</p>
+            <h1 id="work-title">{isSpecial ? selectedParticipant.name : work.title}</h1>
+            <p>{isSpecial ? selectedParticipant.role : work.chapter} · {projectionState.status === "ready" ? `${events.length} confirmed Shout${events.length === 1 ? "" : "s"}` : "Activity unavailable"}</p>
+            {isSpecial && <p className="participant-bio">{selectedParticipant.bio}</p>}
+            {isSpecial && <section className="participant-profile" aria-label={`${selectedParticipant.name} demo profile`}>
+              <div className="participant-profile-heading"><div><span>DEMO PROFILE</span><strong>Lv.{selectedParticipant.level}</strong></div><p>{selectedParticipant.specialty}</p></div>
+              <dl className="participant-stats">{selectedParticipant.stats.map((stat) => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}</dd></div>)}</dl>
+              <div className="participant-discoveries"><div><BookOpen size={17} /><strong>Books discovered</strong><span>Mock highlights</span></div><ul>{selectedParticipant.discoveries.map((discovery) => <li key={discovery.title}><img src={discovery.image} alt="" /><span>{discovery.title}</span></li>)}</ul></div>
+            </section>}
             <div className="room-facts"><span><UsersRound size={16} /> One current Shout per wallet</span><span><Clock3 size={16} /> Closes {formatDeadline(room.deadline)}</span></div>
             {!isSpecial && <a className="read-link" href={work.reading_url} target="_blank" rel="noreferrer"><BookOpen size={18} /> Read Official Chapter</a>}
           </div>
           <div className="work-actions">
-            <button className="primary-action" type="button" onClick={onOpenGroove}>{isSpecial ? "Shout for this team" : "Osu!"} <MessageCircle size={20} /></button>
-            <button className={inShelf ? "secondary-action active" : "secondary-action"} type="button" onClick={onToggleShelf}>{inShelf ? "Remove from My Shelf" : "Add to My Shelf"}</button>
+            <button className="primary-action" type="button" onClick={onOpenGroove}>{isSpecial ? "Vote for this participant" : "Osu!"} <MessageCircle size={20} /></button>
+            {!isSpecial && <button className={inShelf ? "secondary-action active" : "secondary-action"} type="button" onClick={onToggleShelf}>{inShelf ? "Remove from My Shelf" : "Add to My Shelf"}</button>}
           </div>
         </section>
 
@@ -359,9 +452,10 @@ type GrooveDialogProps = {
   state: "idle" | "connecting" | "preparing" | "approving" | "confirming" | "confirmed";
   error: string | null;
   evidence: Extract<GrooveStatus, { status: "CONFIRMED" }> | null;
+  retryConfirmation: boolean;
 };
 
-function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShoutChange, onSubmit, state, error, evidence }: GrooveDialogProps) {
+function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShoutChange, onSubmit, state, error, evidence, retryConfirmation }: GrooveDialogProps) {
   const shoutBytes = new TextEncoder().encode(shout).length;
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const closeDialog = useEffectEvent(onClose);
@@ -396,7 +490,7 @@ function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShou
           ))}
         </div>
         <label className="shout-field"><span>Shout</span><textarea value={shout} onChange={(event) => updateShout(event.target.value)} placeholder="Drop your post-chapter scream..." /><small>{[...shout].length}/200 · {shoutBytes}/600 UTF-8 bytes</small></label>
-        <button className="primary-action full" type="button" onClick={onSubmit} disabled={shoutBytes === 0 || shoutBytes > 600 || !["idle", "confirmed"].includes(state)}>{state === "idle" ? "Send Shout" : state === "connecting" ? "Connect HashPack" : state === "preparing" ? "Checking Room eligibility" : state === "approving" ? "Approve in HashPack" : state === "confirming" ? "Confirming on Mirror" : "Send another Shout"} <Sparkles size={20} /></button>
+        <button className="primary-action full" type="button" onClick={onSubmit} disabled={(!retryConfirmation && (shoutBytes === 0 || shoutBytes > 600)) || !["idle", "confirmed"].includes(state)}>{state === "idle" ? retryConfirmation ? "Retry confirmation" : "Send Shout" : state === "connecting" ? "Connect HashPack" : state === "preparing" ? "Checking Room eligibility" : state === "approving" ? "Approve in HashPack" : state === "confirming" ? "Confirming on Mirror" : "Send another Shout"} <Sparkles size={20} /></button>
         {error && <p className="dialog-note" role="alert">{error}</p>}
         {evidence && <p className="dialog-note" role="status">Sequence #{evidence.sequence_number} · {evidence.message_bytes} bytes · {evidence.payer_account_id}</p>}
         <p className="dialog-note">You can Shout again. Your latest HCS-confirmed Shout becomes current for this Room; this wallet rule is not proof of one human, one vote.</p>
@@ -439,7 +533,7 @@ function ShelfView({ items, onRemove }: { items: ShelfItem[]; onRemove: (roomId:
 function ProfileView() {
   return (
     <main className="page collection-page profile-page">
-      <header className="profile-hero"><img src="/assets/level-up.webp" alt="Manga hero surrounded by blue and magenta light" /><div className="profile-hero-shade" /><div className="profile-hero-copy"><div className="profile-avatar"><UserRound /></div><p className="kicker">READER PROFILE</p><h1>No linked identity</h1><p>Oshikatsu connects HashPack only when you choose to send a Shout. This Reader does not currently expose a personal backend profile.</p></div></header>
+      <header className="profile-hero"><img src="/assets/room-stage.webp" alt="Readers gathered at an Oshikatsu event" /><div className="profile-hero-shade" /><div className="profile-hero-copy"><div className="profile-avatar"><img src="/assets/profile-avatar.webp" alt="Reader avatar" /></div><p className="kicker">MY PROFILE</p><h1>Guest Reader</h1><p>Your avatar and Shelf live only in this browser. Oshikatsu does not currently expose or infer a public identity profile.</p></div></header>
       <section className="profile-status" aria-labelledby="profile-status-title"><div className="section-heading"><div><p className="kicker">AVAILABILITY</p><h2 id="profile-status-title">What this Reader knows</h2></div><ShieldCheck /></div><div className="profile-status-list"><p><CheckCircle2 /><span><strong>Local Shelf</strong><small>Stored in this browser only</small></span><b>Available</b></p><p><UserRound /><span><strong>Wallet identity</strong><small>May reconnect for Shouts; never linked to a backend profile</small></span><b>Not linked</b></p><p><Medal /><span><strong>Badges and achievements</strong><small>No verified achievement backend</small></span><b>Unavailable</b></p><p><Clock3 /><span><strong>Personal Shout history</strong><small>Room activity is not assembled into a profile</small></span><b>Unavailable</b></p></div></section>
       <section className="profile-empty"><MessageCircle /><div><p className="kicker">ROOM-FIRST ACTIVITY</p><h2>Your Shouts stay with the Room</h2><p>Confirmed events can appear in each Room's Groove Wave. This page does not infer ownership, totals, reputation, or proof of personhood from those public events.</p></div></section>
     </main>

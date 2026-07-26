@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { rankRoomWorks, type ConfirmedShout } from "../src/groove.js";
+import { isConsensusWithinPreparation, rankRoomWorks, type ConfirmedShout } from "../src/groove.js";
 
 function shout(overrides: Partial<ConfirmedShout>): ConfirmedShout {
   return {
@@ -54,4 +54,17 @@ test("ranking preserves ties as competition ranks", () => {
     { rank: 1, work_id: "work-b", shout_count: 1, tied: true },
     { rank: 3, work_id: "work-c", shout_count: 0, tied: false },
   ]);
+});
+
+test("preparation expiry limits consensus time rather than delayed Mirror observation", () => {
+  const preparation = {
+    created_at: "2026-07-26T03:00:00.000Z",
+    expires_at: "2026-07-26T03:10:00.000Z",
+  };
+
+  assert.equal(isConsensusWithinPreparation(preparation, "1785034799.999999999"), false);
+  assert.equal(isConsensusWithinPreparation(preparation, "1785034800.000000000"), true);
+  assert.equal(isConsensusWithinPreparation(preparation, "1785035400.000000000"), true);
+  assert.equal(isConsensusWithinPreparation(preparation, "1785035400.000000001"), false);
+  assert.equal(isConsensusWithinPreparation(preparation, "not-a-timestamp"), false);
 });

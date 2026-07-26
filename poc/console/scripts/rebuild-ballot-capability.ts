@@ -1,11 +1,12 @@
 import { readFile } from "node:fs/promises";
-import { rebuildBallotCapability } from "../apps/api/src/ballot-capability-rebuild.js";
+import { rebuildBallotCapability, rebuildBallotCapabilityFromPublicSources } from "../apps/api/src/ballot-capability-rebuild.js";
+import { foldBallotCapabilities } from "../apps/api/src/ballot-verification.js";
 import type { BallotVerificationObservation, VerificationReason } from "../apps/api/src/ballot-verification.js";
 
-function option(name: string) {
+function option(name: string, required = true) {
   const index = process.argv.indexOf(name);
   const value = index >= 0 ? process.argv[index + 1] : undefined;
-  if (!value) throw new Error(`${name} is required.`);
+  if (!value && required) throw new Error(`${name} is required.`);
   return value;
 }
 
@@ -27,21 +28,38 @@ function parseObservations(value: unknown): BallotVerificationObservation[] {
   return value as BallotVerificationObservation[];
 }
 
-const mirror = JSON.parse(await readFile(option("--mirror"), "utf8")) as Record<string, unknown>;
-const chunkInfo = mirror.chunk_info as Record<string, unknown> | null | undefined;
-const artifactBytes = await readFile(option("--artifact"));
-const observations = parseObservations(JSON.parse(await readFile(option("--observations"), "utf8")));
-const record = rebuildBallotCapability({
-  mirror: {
-    message_bytes: Buffer.from(String(mirror.message), "base64"),
-    payer_account_id: String(mirror.payer_account_id),
-    sequence_number: Number(mirror.sequence_number),
-    consensus_timestamp: String(mirror.consensus_timestamp),
-    chunk_total: Number(chunkInfo?.total),
-  },
-  artifact_bytes: artifactBytes,
-  artifact_reference: option("--artifact-reference"),
-  verification_observations: observations,
-});
+const observationsPath = option("--observations");
+const observations = parseObservations(JSON.parse(await readFile(observationsPath, "utf8")));
+const topicId = option("--topic-id", false);
+const sequenceNumber = option("--sequence", false);
+const mirrorPath = option("--mirror", false);
+let record;
+if (topicId || sequenceNumber) {
+  if (!topicId || !sequenceNumber || mirrorPath) {
+    throw new Error("Public rebuild requires --topic-id and --sequence without --mirror.");
+  }
+  record = await rebuildBallotCapabilityFromPublicSources({
+    mirror_base_url: option("--mirror-base-url", false),
+    topic_id: topicId,
+    sequence_number: Number(sequenceNumber),
+    verification_observations: observations,
+  });
+} else {
+  const mirror = JSON.parse(await readFile(option("--mirror"), "utf8")) as Record<string, unknown>;
+  const chunkInfo = mirror.chunk_info as Record<string, unknown> | null | undefined;
+  const artifactBytes = await readFile(option("--artifact"));
+  record = rebuildBallotCapability({
+    mirror: {
+      message_bytes: Buffer.from(String(mirror.message), "base64"),
+      payer_account_id: String(mirror.payer_account_id),
+      sequence_number: Number(mirror.sequence_number),
+      consensus_timestamp: String(mirror.consensus_timestamp),
+      chunk_total: chunkInfo ? Number(chunkInfo.total) : 1,
+    },
+    artifact_bytes: artifactBytes,
+    artifact_reference: option("--artifact-reference"),
+    verification_observations: observations,
+  });
+}
 
-console.log(JSON.stringify(record, null, 2));
+console.log(JSON.stringify({ record, capability: foldBallotCapabilities([record])[0] }, null, 2));

@@ -7,7 +7,7 @@ import {
   worldArtifactSha256,
   type WorldArtifactV1,
 } from "@oshikatsu/protocol";
-import { rebuildBallotCapability } from "../src/ballot-capability-rebuild.js";
+import { rebuildBallotCapability, rebuildBallotCapabilityFromPublicSources } from "../src/ballot-capability-rebuild.js";
 import { foldBallotCapabilities } from "../src/ballot-verification.js";
 
 const artifact: WorldArtifactV1 = {
@@ -79,6 +79,52 @@ test("fails closed when public evidence does not bind exactly", () => {
     artifact_reference: `${artifactReference}?mutable=true`,
     verification_observations: verified,
   }), /binding is invalid/);
+});
+
+test("fetches Mirror and its committed artifact without granting optimistic capability", async () => {
+  const requested: string[] = [];
+  const fetcher = async (url: string) => {
+    requested.push(url);
+    if (url.includes("/api/v1/topics/")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          message: Buffer.from(messageBytes).toString("base64"),
+          payer_account_id: artifact.account_id,
+          sequence_number: 11,
+          consensus_timestamp: "1785027653.123456789",
+          chunk_info: null,
+        }),
+        arrayBuffer: async () => new ArrayBuffer(0),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+      arrayBuffer: async () => artifactBytes.buffer.slice(artifactBytes.byteOffset, artifactBytes.byteOffset + artifactBytes.byteLength),
+    };
+  };
+
+  const unverified = await rebuildBallotCapabilityFromPublicSources({
+    topic_id: "0.0.9745676",
+    sequence_number: 11,
+    verification_observations: [],
+  }, fetcher);
+  assert.deepEqual(requested, [
+    "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.9745676/messages/11",
+    artifactReference,
+  ]);
+  assert.equal(unverified.verification.status, "RECORDED_UNVERIFIED");
+  assert.equal(foldBallotCapabilities([unverified])[0]?.status, "EVIDENCE_NOT_VERIFIED");
+
+  const verifiedRecord = await rebuildBallotCapabilityFromPublicSources({
+    topic_id: "0.0.9745676",
+    sequence_number: 11,
+    verification_observations: verified,
+  }, fetcher);
+  assert.equal(foldBallotCapabilities([verifiedRecord])[0]?.status, "CAPABILITY_GRANTED");
 });
 
 test("reconstructs legacy testnet sequence #11 from public sources", async () => {
