@@ -59,6 +59,22 @@ async function waitForAccount(walletProvider: HederaProvider) {
   return null;
 }
 
+export async function getLinkedHashPackAccount() {
+  try {
+    const wallet = await getWallet();
+    const account = accountFromProvider(wallet.provider);
+    if (!account) return null;
+    void wallet.provider.rpcProviders;
+    if (!wallet.provider.nativeProvider) {
+      await wallet.provider.disconnect();
+      return null;
+    }
+    return { accountId: account.slice("hedera:testnet:".length), signerAccountId: account };
+  } catch {
+    return null;
+  }
+}
+
 export async function requireHashPackAccount() {
   const wallet = await getWallet();
   let account = accountFromProvider(wallet.provider);

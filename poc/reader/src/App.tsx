@@ -16,9 +16,11 @@ import {
   Trophy,
   UserRound,
   UsersRound,
+  ExternalLink,
+  FileSearch,
   X,
 } from "lucide-react";
-import { archiveDemoRoom, createDemoRoom, fetchDemoRooms, fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type Room, type RoomProjection, type RoomWork } from "./rooms-api";
+import { archiveDemoRoom, createDemoRoom, fetchDemoRooms, fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type DemoRoomDuration, type Room, type RoomProjection, type RoomWork } from "./rooms-api";
 import { GrooveConfirmationTimeoutError, prepareGroove, waitForGrooveConfirmation, type GrooveStatus } from "./groove-api";
 import { requireHashPackAccount, submitPreparedGroove } from "./hedera-wallet";
 import { requestGrooveWorldProof, verifyGrooveWorldProof, type GrooveWorldRequest } from "./world-api";
@@ -135,6 +137,17 @@ function formatDeadline(deadline: string) {
     minute: "2-digit",
     timeZoneName: "short",
   }).format(new Date(deadline));
+}
+
+function formatCountdown(deadline: string, now: number) {
+  const remaining = Math.max(0, Date.parse(deadline) - now);
+  if (remaining === 0) return "Closed";
+  const totalSeconds = Math.ceil(remaining / 1000);
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+  return `Closes in ${days ? `${days}d ` : ""}${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 export function App() {
@@ -421,6 +434,9 @@ function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelec
   const events = projectionState.status === "ready" ? projectionState.projection.groove : [];
   const isSpecial = room.room_type === "SPECIAL_TEAM";
   const selectedParticipant = participantFor(work);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1_000); return () => window.clearInterval(timer); }, []);
+  const closed = now > Date.parse(room.deadline);
   return (
     <main className={isSpecial ? "page room-page special-room-page" : "page room-page"}>
       <header className="room-header">
@@ -456,11 +472,11 @@ function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelec
               <dl className="participant-stats">{selectedParticipant.stats.map((stat) => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}</dd></div>)}</dl>
               <div className="participant-discoveries"><div><BookOpen size={17} /><strong>Books discovered</strong><span>Mock highlights</span></div><ul>{selectedParticipant.discoveries.map((discovery) => <li key={discovery.title}><img src={discovery.image} alt="" /><span>{discovery.title}</span></li>)}</ul></div>
             </section>}
-            <div className="room-facts"><span><UsersRound size={16} /> One current Shout per wallet</span><span><Clock3 size={16} /> Closes {formatDeadline(room.deadline)}</span></div>
+            <div className="room-facts"><span><UsersRound size={16} /> One current Shout per wallet</span><span className={closed ? "deadline closed" : "deadline"}><Clock3 size={16} /> {formatCountdown(room.deadline, now)}</span></div>
             {!isSpecial && <a className="read-link" href={work.reading_url} target="_blank" rel="noreferrer"><BookOpen size={18} /> Read Official Chapter</a>}
           </div>
           <div className="work-actions">
-            <button className="primary-action" type="button" onClick={onOpenGroove}>{isSpecial ? "Vote for this participant" : "Osu!"} <MessageCircle size={20} /></button>
+            <button className="primary-action" type="button" onClick={onOpenGroove} disabled={closed}>{closed ? "Room closed" : isSpecial ? "Vote for this participant" : "Osu!"} <MessageCircle size={20} /></button>
             {!isSpecial && <button className={inShelf ? "secondary-action active" : "secondary-action"} type="button" onClick={onToggleShelf}>{inShelf ? "Remove from My Shelf" : "Add to My Shelf"}</button>}
           </div>
         </section>
@@ -470,14 +486,15 @@ function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelec
           {projectionState.status === "loading" && <p className="dialog-note" role="status">Loading confirmed events...</p>}
           {projectionState.status === "error" && <p className="dialog-note" role="alert">Groove evidence unavailable.</p>}
           {projectionState.status === "ready" && events.length === 0 && <p className="dialog-note">No confirmed Shouts yet.</p>}
-          {projectionState.status === "ready" && <div className="shout-feed">{events.map((event) => <GrooveEvidence event={event} key={event.prepare_id} />)}</div>}
+          {projectionState.status === "ready" && <div className="shout-feed">{events.map((event) => <GrooveEvidence event={event} work={room.works.find((candidate) => candidate.id === event.work_id) ?? null} key={event.prepare_id} />)}</div>}
         </aside>
       </div>
     </main>
   );
 }
 
-function GrooveEvidence({ event }: { event: ConfirmedGrooveEvent }) {
+function GrooveEvidence({ event, work }: { event: ConfirmedGrooveEvent; work: RoomWork | null }) {
+  const [expanded, setExpanded] = useState(false);
   let message: { s?: string; c?: string } = {};
   try {
     message = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(event.message_base64), (character) => character.charCodeAt(0)))) as { s?: string; c?: string };
@@ -485,7 +502,13 @@ function GrooveEvidence({ event }: { event: ConfirmedGrooveEvent }) {
     message = {};
   }
   const reaction = reactions.find((item) => item.id === message.s);
-  return <p><span>Sequence #{event.sequence_number} · {event.payer_account_id} · {event.message_bytes} bytes</span><strong>{reaction && <img src={reaction.icon} alt="" />}{reaction?.label ?? "Confirmed reaction"}</strong>{message.c && <> · {message.c}</>}</p>;
+  const late = event.projection_state === "LATE";
+  const evidenceId = `evidence-${event.event_hash}`;
+  return <article className={late ? "shout-row late" : "shout-row"}>
+    {work && <img className="shout-cover" src={work.cover_url} alt={`${work.title} cover`} />}
+    <div className="shout-content"><span>{late ? "LATE · NOT COUNTED" : `HEDERA CONFIRMED · SEQUENCE #${event.sequence_number}`}</span><b>{work?.title ?? event.work_id}</b><strong>{reaction && <img src={reaction.icon} alt="" />}{reaction?.label ?? "Confirmed reaction"}</strong>{message.c && <p>{message.c}</p>}<button className="evidence-toggle" type="button" aria-expanded={expanded} aria-controls={evidenceId} onClick={() => setExpanded((current) => !current)}><FileSearch size={15} /> Evidence</button></div>
+    {expanded && <section className="shout-evidence" id={evidenceId}><h3>Shout evidence</h3><p>This wallet-signed Shout was matched to one exact Hedera topic message. It is not a Ballot v2 record.</p><dl><div><dt>Payer</dt><dd>{event.payer_account_id}</dd></div><div><dt>Topic</dt><dd>{event.topic_id}</dd></div><div><dt>Consensus</dt><dd>{event.consensus_timestamp}</dd></div><div><dt>Event hash</dt><dd>{event.event_hash}</dd></div><div><dt>World proof</dt><dd>First-Shout gate only; not embedded in this row</dd></div><div><dt>Later verification</dt><dd>Use Ballot v2 artifact and World anchor evidence</dd></div></dl><div className="evidence-links"><a href={`https://testnet.mirrornode.hedera.com/api/v1/topics/${event.topic_id}/messages/${event.sequence_number}`} target="_blank" rel="noreferrer">Topic message <ExternalLink size={13} /></a><a href={`https://testnet.mirrornode.hedera.com/api/v1/transactions/${encodeURIComponent(event.transaction_id)}`} target="_blank" rel="noreferrer">Transaction <ExternalLink size={13} /></a></div></section>}
+  </article>;
 }
 
 type GrooveDialogProps = {
@@ -585,17 +608,19 @@ type DemoRoomsState =
 
 function ProfileView({ onRoomsChanged }: { onRoomsChanged: () => void }) {
   const [demoRooms, setDemoRooms] = useState<DemoRoomsState>({ status: "loading", rooms: [] });
+  const [duration, setDuration] = useState<DemoRoomDuration>("5m");
+  const [walletAccount, setWalletAccount] = useState<string | null | undefined>(undefined);
 
   async function refreshDemoRooms() {
     try { setDemoRooms({ status: "ready", rooms: await fetchDemoRooms() }); }
     catch (error) { setDemoRooms((current) => ({ status: "error", rooms: current.rooms, message: error instanceof Error ? error.message : "Demo Rooms unavailable." })); }
   }
 
-  useEffect(() => { void refreshDemoRooms(); }, []);
+  useEffect(() => { void refreshDemoRooms(); void import("./hedera-wallet").then(({ getLinkedHashPackAccount }) => getLinkedHashPackAccount()).then((account) => setWalletAccount(account?.accountId ?? null)); }, []);
 
   async function handleCreateDemoRoom() {
     setDemoRooms((current) => ({ status: "working", rooms: current.rooms }));
-    try { await createDemoRoom(); await refreshDemoRooms(); onRoomsChanged(); }
+    try { await createDemoRoom(duration); await refreshDemoRooms(); onRoomsChanged(); }
     catch (error) { setDemoRooms((current) => ({ status: "error", rooms: current.rooms, message: error instanceof Error ? error.message : "Demo Room creation failed." })); }
   }
 
@@ -607,16 +632,17 @@ function ProfileView({ onRoomsChanged }: { onRoomsChanged: () => void }) {
 
   return (
     <main className="page collection-page profile-page">
-      <header className="profile-hero"><img src="/assets/room-stage.webp" alt="Readers gathered at an Oshikatsu event" /><div className="profile-hero-shade" /><div className="profile-hero-copy"><div className="profile-avatar"><img src="/assets/profile-avatar.webp" alt="Reader avatar" /></div><p className="kicker">MY PROFILE</p><h1>Guest Reader</h1><p>Your avatar and Shelf live only in this browser. Oshikatsu does not currently expose or infer a public identity profile.</p></div></header>
+      <header className="profile-hero"><img src="/assets/room-stage.webp" alt="Readers gathered at an Oshikatsu event" /><div className="profile-hero-shade" /><div className="profile-hero-copy"><div className="profile-avatar"><img src="/assets/profile-avatar.webp" alt="Reader avatar" /></div><p className="kicker">MY PROFILE</p><h1>Guest Reader</h1></div></header>
       <section className="demo-room-tools" aria-labelledby="demo-room-title">
         <div className="section-heading"><div><p className="kicker gold">DEMO TOOLS</p><h2 id="demo-room-title">Create a Room for the demo</h2></div><button className="primary-action" type="button" onClick={() => void handleCreateDemoRoom()} disabled={demoRooms.status === "working" || demoRooms.rooms.length >= 3}><Plus size={18} /> {demoRooms.status === "working" ? "Working..." : "Create random Room"}</button></div>
-        <p className="demo-room-note">Creates a 24-hour DEMO Room with a random title and three random manga. Archive removes it from active lists while retaining immutable evidence.</p>
+        <label className="demo-duration"><span>Room duration</span><select value={duration} onChange={(event) => setDuration(event.target.value as DemoRoomDuration)}><option value="2m">2 minutes</option><option value="3m">3 minutes</option><option value="5m">5 minutes</option><option value="10m">10 minutes</option><option value="1h">1 hour</option><option value="1d">1 day</option></select></label>
+        <p className="demo-room-note">Creates a DEMO Room with a random title and three random manga. Archive removes it from active lists while retaining immutable evidence.</p>
         {demoRooms.status === "loading" && <p role="status">Loading your demo Rooms...</p>}
         {demoRooms.status === "error" && <p className="demo-room-error" role="alert">{demoRooms.message}</p>}
         {demoRooms.status !== "loading" && demoRooms.rooms.length === 0 && <p className="demo-room-empty">No demo Rooms created in this browser yet.</p>}
         <div className="demo-room-list">{demoRooms.rooms.map((room) => <article key={room.id}><div><span>DEMO · {room.phase}</span><strong>{room.name.replace(/^DEMO · /, "")}</strong><small>{room.works.map((work) => work.title).join(" · ")}</small></div><button type="button" onClick={() => void handleArchiveDemoRoom(room)} disabled={demoRooms.status === "working"}>Archive</button></article>)}</div>
       </section>
-      <section className="profile-status" aria-labelledby="profile-status-title"><div className="section-heading"><div><p className="kicker">AVAILABILITY</p><h2 id="profile-status-title">What this Reader knows</h2></div><ShieldCheck /></div><div className="profile-status-list"><p><CheckCircle2 /><span><strong>Local Shelf</strong><small>Stored in this browser only</small></span><b>Available</b></p><p><UserRound /><span><strong>Wallet identity</strong><small>May reconnect for Shouts; never linked to a backend profile</small></span><b>Not linked</b></p><p><Medal /><span><strong>Badges and achievements</strong><small>No verified achievement backend</small></span><b>Unavailable</b></p><p><Clock3 /><span><strong>Personal Shout history</strong><small>Room activity is not assembled into a profile</small></span><b>Unavailable</b></p></div></section>
+      <section className="profile-status" aria-labelledby="profile-status-title"><div className="section-heading"><div><p className="kicker">AVAILABILITY</p><h2 id="profile-status-title">What this Reader knows</h2></div><ShieldCheck /></div><div className="profile-status-list"><p><CheckCircle2 /><span><strong>Local Shelf</strong><small>Stored in this browser only</small></span><b>Available</b></p><p><UserRound /><span><strong>Wallet identity</strong><small>{walletAccount ? <a href={`https://hashscan.io/testnet/account/${walletAccount}`} target="_blank" rel="noreferrer">{walletAccount} <ExternalLink size={12} /></a> : walletAccount === undefined ? "Checking HashPack session" : "No active HashPack session"}</small></span><b>{walletAccount ? "Linked" : walletAccount === undefined ? "Checking" : "Not linked"}</b></p><p><Medal /><span><strong>Badges and achievements</strong><small>No verified achievement backend</small></span><b>Unavailable</b></p><p><Clock3 /><span><strong>Personal Shout history</strong><small>Room activity is not assembled into a profile</small></span><b>Unavailable</b></p></div></section>
       <section className="profile-empty"><MessageCircle /><div><p className="kicker">ROOM-FIRST ACTIVITY</p><h2>Your Shouts stay with the Room</h2><p>Confirmed events can appear in each Room's Groove Wave. This page does not infer ownership, totals, reputation, or proof of personhood from those public events.</p></div></section>
     </main>
   );

@@ -81,7 +81,20 @@ const demoRoomNames = [
   "Readers' Choice Session",
 ];
 
-export function createDemoRoomInput(random = Math.random, now = new Date()): z.infer<typeof createRoomSchema> {
+export const demoRoomDurationSchema = z.enum(["2m", "3m", "5m", "10m", "1h", "1d"]);
+export const createDemoRoomRequestSchema = z.object({ duration: demoRoomDurationSchema.default("1d") }).strict();
+export type DemoRoomDuration = z.infer<typeof demoRoomDurationSchema>;
+
+const demoRoomDurationMilliseconds: Record<DemoRoomDuration, number> = {
+  "2m": 2 * 60_000,
+  "3m": 3 * 60_000,
+  "5m": 5 * 60_000,
+  "10m": 10 * 60_000,
+  "1h": 60 * 60_000,
+  "1d": 24 * 60 * 60_000,
+};
+
+export function createDemoRoomInput(random = Math.random, now = new Date(), duration: DemoRoomDuration = "1d"): z.infer<typeof createRoomSchema> {
   const selectedWorks = [...seedInput.works]
     .map((work) => ({ work, order: random() }))
     .sort((left, right) => left.order - right.order)
@@ -92,7 +105,7 @@ export function createDemoRoomInput(random = Math.random, now = new Date()): z.i
     name: `DEMO · ${title} · ${randomUUID().slice(0, 4).toUpperCase()}`,
     room_type: "MANGA",
     opens_at: now.toISOString(),
-    deadline: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+    deadline: new Date(now.getTime() + demoRoomDurationMilliseconds[duration]).toISOString(),
     topic_id: seedInput.topic_id,
     works: selectedWorks,
     acceptance_run_id: "reader-demo",
@@ -190,7 +203,7 @@ export async function createAdminRoom(input: z.infer<typeof createRoomSchema>, i
   return { ...result, replayed: created.replayed };
 }
 
-export async function createDemoRoom(ownerHash: string, idempotencyKey: string) {
+export async function createDemoRoom(ownerHash: string, idempotencyKey: string, duration: DemoRoomDuration = "1d") {
   if (!/^[0-9a-f]{64}$/.test(ownerHash)) throw new Error("INVALID_DEMO_OWNER");
   if (!/^[A-Za-z0-9._:-]{8,100}$/.test(idempotencyKey)) throw new Error("INVALID_IDEMPOTENCY_KEY");
   const store = getFirestore();
@@ -199,7 +212,7 @@ export async function createDemoRoom(ownerHash: string, idempotencyKey: string) 
   const created = await store.runTransaction(async (transaction) => {
     const existing = await transaction.get(reference);
     if (existing.exists) return { roomId: (existing.data() as { room_id: string }).room_id, replayed: true };
-    const input = createDemoRoomInput();
+    const input = createDemoRoomInput(Math.random, new Date(), duration);
     const id = `room-${randomUUID().replaceAll("-", "").slice(0, 20)}`;
     const room = createRoomDocument(input, id);
     transaction.create(store.collection("rooms").doc(id), room);

@@ -8,7 +8,7 @@ import { environment, getWorldIdEnvironment } from "./config.js";
 import { ballotPrepareSchema, ballotRequestSchema, ballotV2ArtifactPrepareSchema, ballotV2ManualPrepareSchema, createBallotRequest, getBallotPreparation, getBallotStatus, prepareBallot, prepareBallotV2FromArtifact } from "./ballots.js";
 import { addVerificationObservation, projectBallotRankings, verificationObservationSchema } from "./ballot-projection.js";
 import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove, rankRoomWorks, recordGrooveWorldGrant } from "./groove.js";
-import { archiveDemoRoom, archiveRoom, createAdminRoom, createDemoRoom, createRoom, createRoomSchema, getAdminRoom, getRoom, getRoomAction, listActions, listAdminRooms, listDemoRooms, listRooms, requireRoomAction, retireAction, roomIdSchema } from "./rooms.js";
+import { archiveDemoRoom, archiveRoom, createAdminRoom, createDemoRoom, createDemoRoomRequestSchema, createRoom, createRoomSchema, getAdminRoom, getRoom, getRoomAction, listActions, listAdminRooms, listDemoRooms, listRooms, requireRoomAction, retireAction, roomIdSchema } from "./rooms.js";
 
 const app = express();
 
@@ -181,10 +181,12 @@ app.get("/api/demo/rooms", async (request, response) => {
 });
 
 app.post("/api/demo/rooms", async (request, response) => {
+  const parsed = createDemoRoomRequestSchema.safeParse(request.body);
+  if (!parsed.success) { response.status(400).json({ error: "Invalid DEMO Room duration." }); return; }
   try {
     const ownerHash = demoOwner(request, response);
     if ((await listDemoRooms(ownerHash)).length >= 3) { response.status(409).json({ error: "DEMO_ROOM_LIMIT_REACHED" }); return; }
-    response.status(201).json(await createDemoRoom(ownerHash, request.header("idempotency-key") ?? randomUUID()));
+    response.status(201).json(await createDemoRoom(ownerHash, request.header("idempotency-key") ?? randomUUID(), parsed.data.duration));
   } catch (error) { operationError(response, error, "Demo Room creation failed."); }
 });
 
@@ -262,13 +264,13 @@ app.get("/api/projection/rooms/:roomId", async (request, response) => {
       response.status(404).json({ error: "Room not found." });
       return;
     }
-    const groove = await listConfirmedGroove(room.id);
+    const groove = await listConfirmedGroove(room.id, room.opens_at, room.deadline);
     const { capabilities, ...rankings } = await projectBallotRankings(room.id, room.works.map((work) => work.id));
     response.json({
       room,
       groove,
       ranking: rankRoomWorks(room.id, room.works.map((work) => work.id), groove),
-      confirmed_shout_count: groove.length,
+      confirmed_shout_count: groove.filter((event) => event.projection_state === "CURRENT").length,
       ballot: { status: "OPTIMISTIC", rankings, capabilities },
       revision: new Date().toISOString(),
     });

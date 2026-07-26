@@ -58,6 +58,8 @@ export type ConfirmedShout = {
   message_base64: string;
   message_bytes: number;
   event_hash: string;
+  window_status?: "IN_WINDOW" | "LATE";
+  projection_state?: "CURRENT" | "LATE";
 };
 
 function claimId(roomId: string, accountId: string) {
@@ -118,6 +120,24 @@ function laterShout(left: ConfirmedShout, right: ConfirmedShout) {
   return left.event_hash >= right.event_hash ? left : right;
 }
 
+function isoNanoseconds(value: string) {
+  return BigInt(Date.parse(value)) * 1_000_000n;
+}
+
+function consensusNanoseconds(value: string) {
+  const match = /^(\d+)\.(\d{1,9})$/.exec(value);
+  const seconds = match?.[1];
+  const fractional = match?.[2];
+  if (!seconds || !fractional) return null;
+  return BigInt(seconds) * 1_000_000_000n + BigInt(fractional.padEnd(9, "0"));
+}
+
+export function grooveWindowStatus(consensusTimestamp: string, opensAt: string, deadline: string): "IN_WINDOW" | "LATE" {
+  const consensus = consensusNanoseconds(consensusTimestamp);
+  if (consensus === null) return "LATE";
+  return consensus >= isoNanoseconds(opensAt) && consensus <= isoNanoseconds(deadline) ? "IN_WINDOW" : "LATE";
+}
+
 function foldCurrentShouts(events: ConfirmedShout[]) {
   const claims = new Map<string, ConfirmedShout>();
   for (const event of events) {
@@ -130,7 +150,7 @@ function foldCurrentShouts(events: ConfirmedShout[]) {
 
 export function rankRoomWorks(roomId: string, workIds: string[], events: ConfirmedShout[]) {
   const counts = new Map(workIds.map((id) => [id, 0]));
-  for (const event of foldCurrentShouts(events.filter((candidate) => candidate.room_id === roomId))) {
+  for (const event of foldCurrentShouts(events.filter((candidate) => candidate.room_id === roomId && candidate.projection_state !== "LATE"))) {
     if (counts.has(event.work_id)) counts.set(event.work_id, (counts.get(event.work_id) ?? 0) + 1);
   }
   const ordered = workIds.map((workId, manifestIndex) => ({ work_id: workId, shout_count: counts.get(workId) ?? 0, manifestIndex }))
@@ -257,6 +277,9 @@ export async function getGrooveStatus(prepareId: string, transactionId: string) 
   if (decoded.t !== "s" || decoded.r !== preparation.room_id || decoded.n !== preparation.work_id || decoded.a !== preparation.account_id) {
     return { status: "INVALID", reason: "CANONICAL_EVENT_MISMATCH" } as const;
   }
+  const room = await getRoom(preparation.room_id);
+  if (!room) return { status: "INVALID", reason: "ROOM_NOT_FOUND" } as const;
+  const windowStatus = grooveWindowStatus(match.consensus_timestamp, room.opens_at, room.deadline);
   const confirmed: ConfirmedShout = {
     status: "CONFIRMED",
     prepare_id: preparation.id,
@@ -270,6 +293,8 @@ export async function getGrooveStatus(prepareId: string, transactionId: string) 
     message_base64: preparation.message_base64,
     message_bytes: preparation.message_bytes,
     event_hash: preparation.event_hash,
+    window_status: windowStatus,
+    projection_state: windowStatus === "LATE" ? "LATE" : "CURRENT",
   };
   const store = getFirestore();
   const evidenceReference = store.collection("groove_evidence").doc(`${preparation.topic_id}-${match.sequence_number}`);
@@ -279,16 +304,24 @@ export async function getGrooveStatus(prepareId: string, transactionId: string) 
     const current = existing.exists ? existing.data() as ConfirmedShout : null;
     firestoreTransaction.set(evidenceReference, confirmed, { merge: false });
     firestoreTransaction.set(store.collection("groove_events").doc(preparation.id), confirmed, { merge: false });
-    if (!current || laterShout(confirmed, current) === confirmed) firestoreTransaction.set(claimReference, confirmed);
+    if (windowStatus === "IN_WINDOW" && (!current || laterShout(confirmed, current) === confirmed)) firestoreTransaction.set(claimReference, confirmed);
   });
   return confirmed;
 }
 
-export async function listConfirmedGroove(roomId: string) {
+export async function listConfirmedGroove(roomId: string, opensAt: string, deadline: string) {
   const store = getFirestore();
   const [claims, legacy] = await Promise.all([
     store.collection("groove_shout_claims").where("room_id", "==", roomId).limit(100).get(),
     store.collection("groove_events").where("room_id", "==", roomId).limit(100).get(),
   ]);
-  return foldCurrentShouts([...claims.docs, ...legacy.docs].map((document) => document.data() as ConfirmedShout));
+  const byHash = new Map<string, ConfirmedShout>();
+  for (const event of [...claims.docs, ...legacy.docs].map((document) => document.data() as ConfirmedShout)) byHash.set(event.event_hash, event);
+  const events = [...byHash.values()].map((event) => {
+    const status = grooveWindowStatus(event.consensus_timestamp, opensAt, deadline);
+    return { ...event, window_status: status, projection_state: status === "LATE" ? "LATE" as const : "CURRENT" as const };
+  });
+  const current = foldCurrentShouts(events.filter((event) => event.projection_state === "CURRENT"));
+  const late = events.filter((event) => event.projection_state === "LATE").sort((left, right) => left.sequence_number - right.sequence_number);
+  return [...current, ...late];
 }

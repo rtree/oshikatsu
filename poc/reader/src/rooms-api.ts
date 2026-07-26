@@ -35,7 +35,11 @@ export type ConfirmedGrooveEvent = {
   message_base64: string;
   message_bytes: number;
   event_hash: string;
+  window_status?: "IN_WINDOW" | "LATE";
+  projection_state?: "CURRENT" | "LATE";
 };
+
+export type DemoRoomDuration = "2m" | "3m" | "5m" | "10m" | "1h" | "1d";
 
 export type RoomProjection = {
   room: Room;
@@ -140,12 +144,12 @@ export async function fetchDemoRooms() {
   return payload.rooms;
 }
 
-export async function createDemoRoom() {
+export async function createDemoRoom(duration: DemoRoomDuration) {
   const response = await fetch("/api/demo/rooms", {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID(), "X-Demo-Session": demoSession() },
     credentials: "same-origin",
-    body: "{}",
+    body: JSON.stringify({ duration }),
   });
   const payload = await response.json() as { room?: unknown; error?: string };
   if (!response.ok) throw new Error(payload.error ?? `Demo Room creation returned HTTP ${response.status}.`);

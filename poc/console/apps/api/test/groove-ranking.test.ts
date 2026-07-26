@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { demoWorldGateAllows, isConsensusWithinPreparation, rankRoomWorks, type ConfirmedShout } from "../src/groove.js";
+import { demoWorldGateAllows, grooveWindowStatus, isConsensusWithinPreparation, rankRoomWorks, type ConfirmedShout } from "../src/groove.js";
 
 function shout(overrides: Partial<ConfirmedShout>): ConfirmedShout {
   return {
@@ -77,4 +77,20 @@ test("DEMO first Shout requires a Room, manifest, and payer-bound World grant", 
   assert.equal(demoWorldGateAllows({ ...input, grant: { room_id: "room-a", manifest_hash: "a".repeat(64), account_id: "0.0.1" } }), true);
   assert.equal(demoWorldGateAllows({ ...input, grant: { room_id: "room-a", manifest_hash: "b".repeat(64), account_id: "0.0.1" } }), false);
   assert.equal(demoWorldGateAllows({ ...input, grant: { room_id: "room-a", manifest_hash: "a".repeat(64), account_id: "0.0.2" } }), false);
+});
+
+test("Room deadline uses inclusive HCS consensus time and excludes late events from ranking", () => {
+  const opensAt = "2026-07-26T03:00:00.000Z";
+  const deadline = "2026-07-26T03:02:00.000Z";
+  assert.equal(grooveWindowStatus("1785034800.000000000", opensAt, deadline), "IN_WINDOW");
+  assert.equal(grooveWindowStatus("1785034920.000000000", opensAt, deadline), "IN_WINDOW");
+  assert.equal(grooveWindowStatus("1785034920.000000001", opensAt, deadline), "LATE");
+  const events = [
+    shout({ sequence_number: 10, work_id: "work-a", projection_state: "CURRENT" }),
+    shout({ sequence_number: 20, work_id: "work-b", projection_state: "LATE" }),
+  ];
+  assert.deepEqual(rankRoomWorks("room-a", ["work-a", "work-b"], events), [
+    { rank: 1, work_id: "work-a", shout_count: 1, tied: false },
+    { rank: 2, work_id: "work-b", shout_count: 0, tied: false },
+  ]);
 });
