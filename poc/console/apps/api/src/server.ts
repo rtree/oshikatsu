@@ -1,14 +1,14 @@
 import express from "express";
 import { signRequest } from "@worldcoin/idkit-server";
 import { hashSignal } from "@worldcoin/idkit-core/hashing";
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { requireAdmin } from "./admin-auth.js";
 import { environment, getWorldIdEnvironment } from "./config.js";
 import { ballotPrepareSchema, ballotRequestSchema, ballotV2ArtifactPrepareSchema, createBallotRequest, getBallotPreparation, getBallotStatus, prepareBallot, prepareBallotV2FromArtifact } from "./ballots.js";
 import { addVerificationObservation, projectBallotRankings, verificationObservationSchema } from "./ballot-projection.js";
 import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove, rankRoomWorks } from "./groove.js";
-import { archiveRoom, createAdminRoom, createRoom, createRoomSchema, getAdminRoom, getRoom, getRoomAction, listActions, listAdminRooms, listRooms, requireRoomAction, retireAction, roomIdSchema } from "./rooms.js";
+import { archiveDemoRoom, archiveRoom, createAdminRoom, createDemoRoom, createRoom, createRoomSchema, getAdminRoom, getRoom, getRoomAction, listActions, listAdminRooms, listDemoRooms, listRooms, requireRoomAction, retireAction, roomIdSchema } from "./rooms.js";
 
 const app = express();
 
@@ -110,6 +110,19 @@ function operationError(response: express.Response, error: unknown, fallback: st
   response.status(400).json({ error: message });
 }
 
+function demoOwner(request: express.Request, response: express.Response) {
+  const cookies = new Map((request.header("cookie") ?? "").split(";").flatMap((entry) => {
+    const separator = entry.indexOf("=");
+    return separator < 0 ? [] : [[entry.slice(0, separator).trim(), entry.slice(separator + 1).trim()]];
+  }));
+  let session = cookies.get("oshikatsu_demo_session");
+  if (!session || !/^[0-9a-f-]{36}$/.test(session)) {
+    session = randomUUID();
+    response.append("Set-Cookie", `oshikatsu_demo_session=${session}; Max-Age=86400; Path=/api/demo; HttpOnly; Secure; SameSite=Strict`);
+  }
+  return createHash("sha256").update(session).digest("hex");
+}
+
 app.post("/api/admin/rooms", async (request, response) => {
   const parsed = createRoomSchema.safeParse(request.body);
   const key = request.header("idempotency-key") ?? "";
@@ -154,6 +167,24 @@ app.post("/api/admin/ballots/v2/prepare-from-artifact", async (request, response
   const parsed = ballotV2ArtifactPrepareSchema.safeParse(request.body);
   if (!parsed.success) { response.status(400).json({ error: "Invalid Ballot v2 artifact input.", issues: parsed.error.issues }); return; }
   try { response.status(201).json({ preparation: await prepareBallotV2FromArtifact(parsed.data) }); } catch (error) { adminError(response, error); }
+});
+
+app.get("/api/demo/rooms", async (request, response) => {
+  try { response.json({ rooms: await listDemoRooms(demoOwner(request, response)) }); } catch { response.status(503).json({ error: "Demo Room storage is unavailable." }); }
+});
+
+app.post("/api/demo/rooms", async (request, response) => {
+  try {
+    const ownerHash = demoOwner(request, response);
+    if ((await listDemoRooms(ownerHash)).length >= 3) { response.status(409).json({ error: "DEMO_ROOM_LIMIT_REACHED" }); return; }
+    response.status(201).json(await createDemoRoom(ownerHash, request.header("idempotency-key") ?? randomUUID()));
+  } catch (error) { operationError(response, error, "Demo Room creation failed."); }
+});
+
+app.delete("/api/demo/rooms/:roomId", async (request, response) => {
+  const manifestHash = (request.header("if-match") ?? "").replaceAll('"', "");
+  if (!/^[0-9a-f]{64}$/.test(manifestHash)) { response.status(400).json({ error: "A valid manifest hash is required." }); return; }
+  try { response.json(await archiveDemoRoom(request.params.roomId, demoOwner(request, response), manifestHash)); } catch (error) { operationError(response, error, "Demo Room archive failed."); }
 });
 
 app.get("/api/rooms", async (_request, response) => {

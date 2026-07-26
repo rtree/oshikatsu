@@ -17,7 +17,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type Room, type RoomProjection, type RoomWork } from "./rooms-api";
+import { archiveDemoRoom, createDemoRoom, fetchDemoRooms, fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type Room, type RoomProjection, type RoomWork } from "./rooms-api";
 import { GrooveConfirmationTimeoutError, prepareGroove, waitForGrooveConfirmation, type GrooveStatus } from "./groove-api";
 
 type View = "home" | "room" | "rankings" | "shelf" | "profile";
@@ -288,7 +288,7 @@ export function App() {
       )}
       {view === "rankings" && <RankingsView rooms={rooms} selectedRoom={selectedRoom} projectionState={projectionState} onSelectRoom={(room) => selectRoom(room, "rankings")} />}
       {view === "shelf" && <ShelfView items={shelfItems} onRemove={(roomId, workId) => setShelfItems((current) => current.filter((item) => item.room_id !== roomId || item.id !== workId))} />}
-      {view === "profile" && <ProfileView />}
+      {view === "profile" && <ProfileView onRoomsChanged={() => void loadRooms()} />}
 
       <BottomNav view={view} onNavigate={navigate} />
 
@@ -530,10 +530,45 @@ function ShelfView({ items, onRemove }: { items: ShelfItem[]; onRemove: (roomId:
   );
 }
 
-function ProfileView() {
+type DemoRoomsState =
+  | { status: "loading"; rooms: Room[] }
+  | { status: "ready"; rooms: Room[] }
+  | { status: "working"; rooms: Room[] }
+  | { status: "error"; rooms: Room[]; message: string };
+
+function ProfileView({ onRoomsChanged }: { onRoomsChanged: () => void }) {
+  const [demoRooms, setDemoRooms] = useState<DemoRoomsState>({ status: "loading", rooms: [] });
+
+  async function refreshDemoRooms() {
+    try { setDemoRooms({ status: "ready", rooms: await fetchDemoRooms() }); }
+    catch (error) { setDemoRooms((current) => ({ status: "error", rooms: current.rooms, message: error instanceof Error ? error.message : "Demo Rooms unavailable." })); }
+  }
+
+  useEffect(() => { void refreshDemoRooms(); }, []);
+
+  async function handleCreateDemoRoom() {
+    setDemoRooms((current) => ({ status: "working", rooms: current.rooms }));
+    try { await createDemoRoom(); await refreshDemoRooms(); onRoomsChanged(); }
+    catch (error) { setDemoRooms((current) => ({ status: "error", rooms: current.rooms, message: error instanceof Error ? error.message : "Demo Room creation failed." })); }
+  }
+
+  async function handleArchiveDemoRoom(room: Room) {
+    setDemoRooms((current) => ({ status: "working", rooms: current.rooms }));
+    try { await archiveDemoRoom(room); await refreshDemoRooms(); onRoomsChanged(); }
+    catch (error) { setDemoRooms((current) => ({ status: "error", rooms: current.rooms, message: error instanceof Error ? error.message : "Demo Room archive failed." })); }
+  }
+
   return (
     <main className="page collection-page profile-page">
       <header className="profile-hero"><img src="/assets/room-stage.webp" alt="Readers gathered at an Oshikatsu event" /><div className="profile-hero-shade" /><div className="profile-hero-copy"><div className="profile-avatar"><img src="/assets/profile-avatar.webp" alt="Reader avatar" /></div><p className="kicker">MY PROFILE</p><h1>Guest Reader</h1><p>Your avatar and Shelf live only in this browser. Oshikatsu does not currently expose or infer a public identity profile.</p></div></header>
+      <section className="demo-room-tools" aria-labelledby="demo-room-title">
+        <div className="section-heading"><div><p className="kicker gold">DEMO TOOLS</p><h2 id="demo-room-title">Create a Room for the demo</h2></div><button className="primary-action" type="button" onClick={() => void handleCreateDemoRoom()} disabled={demoRooms.status === "working" || demoRooms.rooms.length >= 3}><Plus size={18} /> {demoRooms.status === "working" ? "Working..." : "Create random Room"}</button></div>
+        <p className="demo-room-note">Creates a 24-hour DEMO Room with a random title and three random manga. Archive removes it from active lists while retaining immutable evidence.</p>
+        {demoRooms.status === "loading" && <p role="status">Loading your demo Rooms...</p>}
+        {demoRooms.status === "error" && <p className="demo-room-error" role="alert">{demoRooms.message}</p>}
+        {demoRooms.status !== "loading" && demoRooms.rooms.length === 0 && <p className="demo-room-empty">No demo Rooms created in this browser yet.</p>}
+        <div className="demo-room-list">{demoRooms.rooms.map((room) => <article key={room.id}><div><span>DEMO · {room.phase}</span><strong>{room.name.replace(/^DEMO · /, "")}</strong><small>{room.works.map((work) => work.title).join(" · ")}</small></div><button type="button" onClick={() => void handleArchiveDemoRoom(room)} disabled={demoRooms.status === "working"}>Archive</button></article>)}</div>
+      </section>
       <section className="profile-status" aria-labelledby="profile-status-title"><div className="section-heading"><div><p className="kicker">AVAILABILITY</p><h2 id="profile-status-title">What this Reader knows</h2></div><ShieldCheck /></div><div className="profile-status-list"><p><CheckCircle2 /><span><strong>Local Shelf</strong><small>Stored in this browser only</small></span><b>Available</b></p><p><UserRound /><span><strong>Wallet identity</strong><small>May reconnect for Shouts; never linked to a backend profile</small></span><b>Not linked</b></p><p><Medal /><span><strong>Badges and achievements</strong><small>No verified achievement backend</small></span><b>Unavailable</b></p><p><Clock3 /><span><strong>Personal Shout history</strong><small>Room activity is not assembled into a profile</small></span><b>Unavailable</b></p></div></section>
       <section className="profile-empty"><MessageCircle /><div><p className="kicker">ROOM-FIRST ACTIVITY</p><h2>Your Shouts stay with the Room</h2><p>Confirmed events can appear in each Room's Groove Wave. This page does not infer ownership, totals, reputation, or proof of personhood from those public events.</p></div></section>
     </main>

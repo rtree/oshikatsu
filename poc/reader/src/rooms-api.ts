@@ -120,3 +120,36 @@ export async function createRoom(input: {
   if (!isRoom(payload.room)) throw new Error("Room creation returned an invalid response.");
   return payload.room;
 }
+
+export async function fetchDemoRooms() {
+  const response = await fetch("/api/demo/rooms", { headers: { Accept: "application/json" }, credentials: "same-origin" });
+  const payload = await response.json() as { rooms?: unknown; error?: string };
+  if (!response.ok) throw new Error(payload.error ?? `Demo Room list returned HTTP ${response.status}.`);
+  if (!Array.isArray(payload.rooms) || !payload.rooms.every(isRoom)) throw new Error("Demo Room list returned an invalid response.");
+  return payload.rooms;
+}
+
+export async function createDemoRoom() {
+  const response = await fetch("/api/demo/rooms", {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+    credentials: "same-origin",
+    body: "{}",
+  });
+  const payload = await response.json() as { room?: unknown; error?: string };
+  if (!response.ok) throw new Error(payload.error ?? `Demo Room creation returned HTTP ${response.status}.`);
+  if (!isRoom(payload.room)) throw new Error("Demo Room creation returned an invalid response.");
+  return payload.room;
+}
+
+export async function archiveDemoRoom(room: Room) {
+  const response = await fetch(`/api/demo/rooms/${encodeURIComponent(room.id)}`, {
+    method: "DELETE",
+    headers: { Accept: "application/json", "Content-Type": "application/json", "If-Match": room.manifest_hash },
+    credentials: "same-origin",
+    body: "{}",
+  });
+  const payload = await response.json() as { state?: string; error?: string };
+  if (!response.ok) throw new Error(payload.error ?? `Demo Room archive returned HTTP ${response.status}.`);
+  if (payload.state !== "ARCHIVED") throw new Error("Demo Room archive returned an invalid response.");
+}

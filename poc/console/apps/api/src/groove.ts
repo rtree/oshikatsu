@@ -114,7 +114,9 @@ export function isConsensusWithinPreparation(
 ) {
   const match = /^(\d+)\.(\d{1,9})$/.exec(consensusTimestamp);
   if (!match) return false;
-  const consensusNanoseconds = BigInt(match[1]) * 1_000_000_000n + BigInt(match[2].padEnd(9, "0"));
+  const [, seconds, fractional] = match;
+  if (!seconds || !fractional) return false;
+  const consensusNanoseconds = BigInt(seconds) * 1_000_000_000n + BigInt(fractional.padEnd(9, "0"));
   const createdNanoseconds = BigInt(Date.parse(preparation.created_at)) * 1_000_000n;
   const expiresNanoseconds = BigInt(Date.parse(preparation.expires_at)) * 1_000_000n;
   return consensusNanoseconds >= createdNanoseconds && consensusNanoseconds <= expiresNanoseconds;

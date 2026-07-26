@@ -50,6 +50,8 @@ export type RoomAction = {
 
 type RoomAdmin = {
   state: "ACTIVE" | "ARCHIVED";
+  purpose?: "DEMO";
+  demo_owner_hash?: string;
   retired_actions?: string[];
   archived_at?: string;
   archived_by?: string;
@@ -70,6 +72,32 @@ const seedInput: z.infer<typeof createRoomSchema> = {
     { id: "returner", title: "Returner's Magic", chapter: "Chapter 119", cover_url: "https://oshikatsu-reader-lisbon26.web.app/assets/sample05.webp", hero_url: null, reading_url: "https://www.webtoons.com/" },
   ],
 };
+
+const demoRoomNames = [
+  "Midnight Discovery Club",
+  "Hidden Gems Showcase",
+  "Next Favorite Manga",
+  "Weekend Manga Circle",
+  "Readers' Choice Session",
+];
+
+export function createDemoRoomInput(random = Math.random, now = new Date()): z.infer<typeof createRoomSchema> {
+  const selectedWorks = [...seedInput.works]
+    .map((work) => ({ work, order: random() }))
+    .sort((left, right) => left.order - right.order)
+    .slice(0, 3)
+    .map(({ work }) => work);
+  const title = demoRoomNames[Math.floor(random() * demoRoomNames.length)] ?? demoRoomNames[0];
+  return createRoomSchema.parse({
+    name: `DEMO · ${title} · ${randomUUID().slice(0, 4).toUpperCase()}`,
+    room_type: "MANGA",
+    opens_at: now.toISOString(),
+    deadline: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+    topic_id: seedInput.topic_id,
+    works: selectedWorks,
+    acceptance_run_id: "reader-demo",
+  });
+}
 
 export function getRoomAction(roomId: string) {
   return `oshikatsu-room:${roomId}`;
@@ -160,6 +188,48 @@ export async function createAdminRoom(input: z.infer<typeof createRoomSchema>, i
   const result = await getAdminRoom(created.roomId);
   if (!result) throw new Error("IDEMPOTENCY_RESULT_MISSING");
   return { ...result, replayed: created.replayed };
+}
+
+export async function createDemoRoom(ownerHash: string, idempotencyKey: string) {
+  if (!/^[0-9a-f]{64}$/.test(ownerHash)) throw new Error("INVALID_DEMO_OWNER");
+  if (!/^[A-Za-z0-9._:-]{8,100}$/.test(idempotencyKey)) throw new Error("INVALID_IDEMPOTENCY_KEY");
+  const store = getFirestore();
+  const keyHash = createHash("sha256").update(`demo:${ownerHash}:${idempotencyKey}`).digest("hex");
+  const reference = store.collection("admin_idempotency").doc(keyHash);
+  const created = await store.runTransaction(async (transaction) => {
+    const existing = await transaction.get(reference);
+    if (existing.exists) return { roomId: (existing.data() as { room_id: string }).room_id, replayed: true };
+    const input = createDemoRoomInput();
+    const id = `room-${randomUUID().replaceAll("-", "").slice(0, 20)}`;
+    const room = createRoomDocument(input, id);
+    transaction.create(store.collection("rooms").doc(id), room);
+    transaction.create(store.collection("room_admin").doc(id), { state: "ACTIVE", purpose: "DEMO", demo_owner_hash: ownerHash });
+    transaction.create(reference, { room_id: id, actor: "reader-demo", created_at: new Date().toISOString() });
+    transaction.create(store.collection("admin_audit").doc(), { actor: "reader-demo", operation: "CREATE_DEMO_ROOM", target: id, manifest_hash: room.manifest_hash, created_at: new Date().toISOString() });
+    return { roomId: id, replayed: false };
+  });
+  const room = await getRoom(created.roomId);
+  if (!room) throw new Error("IDEMPOTENCY_RESULT_MISSING");
+  return { room, replayed: created.replayed };
+}
+
+export async function listDemoRooms(ownerHash: string) {
+  if (!/^[0-9a-f]{64}$/.test(ownerHash)) return [];
+  const snapshot = await getFirestore().collection("room_admin")
+    .where("purpose", "==", "DEMO")
+    .where("demo_owner_hash", "==", ownerHash)
+    .get();
+  const rooms = await Promise.all(snapshot.docs.flatMap((document) => {
+    const admin = document.data() as RoomAdmin;
+    return admin.state === "ARCHIVED" ? [] : [getRoom(document.id)];
+  }));
+  return rooms.filter((room): room is Room => room !== null).sort((left, right) => right.created_at.localeCompare(left.created_at));
+}
+
+export async function archiveDemoRoom(id: string, ownerHash: string, manifestHash: string) {
+  const admin = (await getFirestore().collection("room_admin").doc(id).get()).data() as RoomAdmin | undefined;
+  if (admin?.purpose !== "DEMO" || admin.demo_owner_hash !== ownerHash) throw new Error("DEMO_ROOM_NOT_OWNED");
+  return archiveRoom(id, manifestHash, id, "Removed from Profile demo", "reader-demo");
 }
 
 export async function listRooms() {
