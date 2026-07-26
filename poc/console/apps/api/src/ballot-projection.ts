@@ -66,6 +66,10 @@ export async function projectBallotRankings(roomId: string, nomineeIds: string[]
       verification: foldBallotVerification(observations.docs.map((item) => item.data() as BallotVerificationObservation)),
     } satisfies RankedBallotRecord;
   }));
+  return projectBallotRankingRecords(roomId, nomineeIds, records);
+}
+
+export function projectBallotRankingRecords(roomId: string, nomineeIds: string[], records: Array<StoredBallotRecord & RankedBallotRecord>) {
   const provisional = rankBallots(nomineeIds, records, previewRankingPolicy, "PROVISIONAL");
   const verified = rankBallots(nomineeIds, records, previewRankingPolicy, "VERIFIED");
   const capabilities = foldBallotCapabilities(records.map((record) => ({

@@ -106,6 +106,15 @@ test("duplicate HCS sequences and multiple SEALs fail closed", () => {
   assert.equal(replayBallotLifecycle({ capabilities: [capability], manifest, lifecycle: [first], seals: [seal, { ...seal, sequence_number: 21 }] }).seal?.reason, "MULTIPLE_SEALS");
 });
 
+test("unauthorized SEAL noise cannot veto the authority SEAL", () => {
+  const lifecycle = [update(11, ["beta", "alpha", "gamma"] )];
+  const unsealed = replayBallotLifecycle({ capabilities: [capability], manifest, lifecycle });
+  const event = createBallotSealEvent({ roomId: manifest.room_id, manifestHash: manifest.manifest_hash, authorityAccountId: manifest.authority_account_id, deadline: manifest.deadline, cutoffSequence: 11, policyId: sealedRankingPolicy.policy_id, resultHash: unsealed.result_hash });
+  const authoritySeal = { event, payer_account_id: manifest.authority_account_id, sequence_number: 20, consensus_timestamp: "1785028000.000000000", chunk_count: 1 };
+  const attackerSeal = { ...authoritySeal, payer_account_id: "0.0.999", sequence_number: 19 };
+  assert.deepEqual(replayBallotLifecycle({ capabilities: [capability], manifest, lifecycle, seals: [attackerSeal, authoritySeal] }).seal, { event_hash: event.e, sequence_number: 20, valid: true });
+});
+
 test("3-2-1 result hash and authority SEAL validate deterministically at the cutoff", () => {
   const lifecycle = [update(11, ["gamma", "alpha", "beta"]), withdraw(12), update(13, ["beta", "gamma", "alpha"], { consensus_timestamp: "1785027000.000000000" })];
   const unsealed = replayBallotLifecycle({ capabilities: [capability], manifest, lifecycle });

@@ -165,7 +165,13 @@ export function replayBallotLifecycle(input: BallotReplayInput) {
   }
 
   const orderedSeals = ordered(input.seals ?? []);
-  const candidateSeal = orderedSeals[0];
+  const authoritySeals = orderedSeals.filter(({ event, payer_account_id, chunk_count }) =>
+    chunk_count === 1
+    && event.r === manifest.room_id
+    && event.m === manifest.manifest_hash
+    && event.a === manifest.authority_account_id
+    && payer_account_id === event.a);
+  const candidateSeal = authoritySeals[0] ?? orderedSeals[0];
   const seenSequences = new Set(input.capabilities.map((capability) => capability.sequence_number));
   for (const record of ordered(input.lifecycle)) {
     const event = record.event;
@@ -193,7 +199,7 @@ export function replayBallotLifecycle(input: BallotReplayInput) {
   let seal = null as null | { event_hash: string; sequence_number: number; valid: boolean; reason?: BallotReplayRejectionReason };
   if (candidateSeal) {
     const { event } = candidateSeal;
-    const reason = orderedSeals.length !== 1 ? "MULTIPLE_SEALS"
+    const reason = authoritySeals.length > 1 ? "MULTIPLE_SEALS"
       : candidateSeal.chunk_count !== 1 ? "NOT_SINGLE_MESSAGE"
       : event.r !== manifest.room_id ? "ROOM_BINDING_INVALID"
       : event.m !== manifest.manifest_hash ? "MANIFEST_BINDING_INVALID"
