@@ -25,6 +25,7 @@ type WorldIdRequest = {
 type Room = {
   id: string;
   name: string;
+  works?: Array<{ id: string }>;
 };
 
 type VerificationArtifact = {
@@ -42,6 +43,15 @@ function getWorldIdErrorMessage(errorCode: string) {
   return `World ID: ${errorCode}`;
 }
 
+function downloadJson(filename: string, value: unknown) {
+  const url = URL.createObjectURL(new Blob([`${JSON.stringify(value)}\n`], { type: "application/json" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export function App() {
   const [request, setRequest] = useState<WorldIdRequest | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -52,6 +62,8 @@ export function App() {
   const [lastErrorCode, setLastErrorCode] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomId, setRoomId] = useState("");
+  const [accountId, setAccountId] = useState("0.0.9706029");
+  const [nomineeIds, setNomineeIds] = useState("");
   const [walletEvidence, setWalletEvidence] = useState<WalletEvidence | null>(null);
   const [walletStatus, setWalletStatus] = useState("HashPack未接続");
 
@@ -61,6 +73,7 @@ export function App() {
       .then(({ rooms: availableRooms }: { rooms: Room[] }) => {
         setRooms(availableRooms);
         setRoomId(availableRooms[0]?.id ?? "");
+        setNomineeIds(availableRooms[0]?.works?.slice(0, 3).map((work) => work.id).join(",") ?? "");
       })
       .catch(() => setError("Room一覧を取得できませんでした。"));
   }, []);
@@ -117,6 +130,23 @@ export function App() {
       roomId: request?.room_id ?? "unknown",
       signalMatches: verification.signal_matches === true,
     });
+    if (new URLSearchParams(window.location.search).get("capture") === "world" && request) {
+      const nominees = nomineeIds.split(",").map((value) => value.trim()).filter(Boolean);
+      if (!/^0\.0\.\d+$/.test(accountId) || nominees.length !== 3 || new Set(nominees).size !== 3) {
+        throw new Error("Capture requires one Hedera account and three distinct nominee IDs.");
+      }
+      const captureId = new Date().toISOString().replaceAll(/[:.]/g, "-");
+      downloadJson(`oshikatsu-world-capture-input-${captureId}.json`, {
+        proof,
+        binding: {
+          room_id: request.room_id,
+          account_id: accountId,
+          nominee_ids: nominees,
+          action: request.action,
+          signal: request.signal,
+        },
+      });
+    }
   }
 
   async function openHashPack() {
@@ -156,7 +186,7 @@ export function App() {
         <p className="lede">World Appで人間性を証明し、投票権を受け取ります。</p>
         <label className="room-field">
           <span>Room</span>
-          <select value={roomId} onChange={(event) => setRoomId(event.target.value)}>
+          <select value={roomId} onChange={(event) => { const nextRoom = rooms.find((room) => room.id === event.target.value); setRoomId(event.target.value); setNomineeIds(nextRoom?.works?.slice(0, 3).map((work) => work.id).join(",") ?? ""); }}>
             {rooms.map((room) => (
               <option key={room.id} value={room.id}>
                 {room.name}
@@ -164,6 +194,7 @@ export function App() {
             ))}
           </select>
         </label>
+        {new URLSearchParams(window.location.search).get("capture") === "world" && <div className="capture-fields"><label className="room-field"><span>Expected Hedera account</span><input value={accountId} onChange={(event) => setAccountId(event.target.value)} /></label><label className="room-field"><span>Ordered nominee IDs</span><input value={nomineeIds} onChange={(event) => setNomineeIds(event.target.value)} placeholder="first,second,third" /></label><p className="message">Before scanning a new QR, close any previous Completed or Failed screen in World App. After successful Portal verification, the raw proof and exact binding download to this device only.</p></div>}
         <button type="button" onClick={startProof} disabled={!roomId || isLoading || isOpen}>
           {isLoading ? "準備中..." : "World IDで証明"}
         </button>
@@ -206,7 +237,7 @@ export function App() {
           rp_context={request.rp_context}
           allow_legacy_proofs={false}
           environment="production"
-          polling={{ interval: 1_000, timeout: 60_000 }}
+          polling={{ interval: 1_000, timeout: 180_000 }}
           preset={proofOfHuman({ signal: request.signal })}
           handleVerify={verifyProof}
           onSuccess={setResult}

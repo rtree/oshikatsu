@@ -25,12 +25,12 @@ function sha256(value) { return createHash("sha256").update(value).digest("hex")
 function decimal(hex) { return BigInt(hex).toString(10); }
 function implementationAddress(slot) { return `0x${slot.slice(-40)}`; }
 
-const proofPath = option("--proof-file");
-const bindingPath = option("--binding-file");
+const capturePath = option("--capture-file");
 const outputPath = option("--out");
-const proofBytes = await readFile(proofPath);
-const proof = JSON.parse(proofBytes.toString("utf8"));
-const binding = JSON.parse(await readFile(bindingPath, "utf8"));
+const capture = JSON.parse(await readFile(capturePath, "utf8"));
+const proof = capture.proof;
+const binding = capture.binding;
+const proofBytes = Buffer.from(JSON.stringify(proof));
 if (proof.environment !== "production" || proof.protocol_version !== "4.0" || proof.responses?.length !== 1 || proof.responses[0]?.identifier !== "proof_of_human") throw new Error("Proof fixture is not one production v4 proof_of_human response.");
 if (!binding.room_id || !binding.account_id || !Array.isArray(binding.nominee_ids) || binding.nominee_ids.length !== 3 || !binding.action || !binding.signal) throw new Error("Binding fixture is incomplete.");
 

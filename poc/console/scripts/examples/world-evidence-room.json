@@ -1,0 +1,33 @@
+{
+  "name": "World Replay Evidence Room",
+  "room_type": "MANGA",
+  "opens_at": "2026-07-25T00:00:00.000Z",
+  "deadline": "2026-08-01T23:59:59.000Z",
+  "topic_id": "0.0.9745676",
+  "works": [
+    {
+      "id": "level-up",
+      "title": "Solo Leveling",
+      "chapter": "Chapter 143",
+      "cover_url": "https://oshikatsu-reader-lisbon26.web.app/assets/sample01.webp",
+      "hero_url": "https://oshikatsu-reader-lisbon26.web.app/assets/level-up.webp",
+      "reading_url": "https://www.webtoons.com/"
+    },
+    {
+      "id": "cadet",
+      "title": "Teenage Mercenary",
+      "chapter": "Chapter 85",
+      "cover_url": "https://oshikatsu-reader-lisbon26.web.app/assets/sample02.webp",
+      "hero_url": null,
+      "reading_url": "https://www.webtoons.com/"
+    },
+    {
+      "id": "divine",
+      "title": "Divine Delivery",
+      "chapter": "Chapter 61",
+      "cover_url": "https://oshikatsu-reader-lisbon26.web.app/assets/sample03.webp",
+      "hero_url": null,
+      "reading_url": "https://www.webtoons.com/"
+    }
+  ]
+}
