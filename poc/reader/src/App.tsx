@@ -150,6 +150,19 @@ function formatCountdown(deadline: string, now: number) {
   return `Closes in ${days ? `${days}d ` : ""}${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function mirrorTransactionId(transactionId: string) {
+  const match = /^(0\.0\.\d+)@(\d+)\.(\d+)$/.exec(transactionId);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : transactionId;
+}
+
+function BrandLogo({ compact = false }: { compact?: boolean }) {
+  return <img className={compact ? "brand-logo compact" : "brand-logo"} src="/assets/01_title.png" alt="Oshikatsu - Manga x Otaku x Love" />;
+}
+
+function CollectionBrand() {
+  return <div className="collection-brand"><BrandLogo /></div>;
+}
+
 export function App() {
   const [view, setView] = useState<View>("home");
   const [roomsState, setRoomsState] = useState<RoomsState>({ status: "loading" });
@@ -379,7 +392,7 @@ function HomeView({ roomsState, onEnterRoom, onRetry }: { roomsState: RoomsState
   return (
     <main className="page home-page">
       <header className="brand-bar">
-        <img className="brand-logo" src="/assets/01_title.png" alt="Oshikatsu - Manga x Otaku x Love" />
+        <BrandLogo />
         <a className="account-pill" href="https://ethglobal-lisbon2026-oshikatsu.web.app/?wallet-test=1"><span className="live-dot" /> Start My Oshikatsu</a>
       </header>
 
@@ -443,6 +456,7 @@ function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelec
     <main className={isSpecial ? "page room-page special-room-page" : "page room-page"}>
       <header className="room-header">
         <button className="icon-button" type="button" onClick={onBack} aria-label="Back to Home"><ArrowLeft /></button>
+        <BrandLogo compact />
         <div><p className="kicker">{room.phase} ROOM</p><strong>{room.name}</strong></div>
         <span className="phase-badge">{room.phase === "LIVE" && <span className="live-dot" />} {room.phase}</span>
       </header>
@@ -500,9 +514,9 @@ function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelec
 
 function GrooveEvidence({ event, work, displayImage, displayTitle }: { event: ConfirmedGrooveEvent; work: RoomWork | null; displayImage?: string; displayTitle?: string }) {
   const [expanded, setExpanded] = useState(false);
-  let message: { s?: string; c?: string } = {};
+  let message: { r?: string; m?: string; a?: string; s?: string; c?: string } = {};
   try {
-    message = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(event.message_base64), (character) => character.charCodeAt(0)))) as { s?: string; c?: string };
+    message = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(event.message_base64), (character) => character.charCodeAt(0)))) as { r?: string; m?: string; a?: string; s?: string; c?: string };
   } catch {
     message = {};
   }
@@ -512,7 +526,7 @@ function GrooveEvidence({ event, work, displayImage, displayTitle }: { event: Co
   return <article className={late ? "shout-row late" : "shout-row"}>
     {displayImage && <img className="shout-cover" src={displayImage} alt={displayTitle ?? work?.title ?? "Vote target"} />}
     <div className="shout-content"><span>{late ? "LATE · NOT COUNTED" : `HEDERA CONFIRMED · SEQUENCE #${event.sequence_number}`}</span><b>{displayTitle ?? work?.title ?? event.work_id}</b><strong>{reaction && <img src={reaction.icon} alt="" />}{reaction?.label ?? "Confirmed reaction"}</strong>{message.c && <p>{message.c}</p>}<button className="evidence-toggle" type="button" aria-expanded={expanded} aria-controls={evidenceId} onClick={() => setExpanded((current) => !current)}><FileSearch size={15} /> Evidence</button></div>
-    {expanded && <section className="shout-evidence" id={evidenceId}><h3>Shout evidence</h3><p>This wallet-signed Shout was matched to one exact Hedera topic message. It is not a Ballot v2 record.</p><dl><div><dt>Payer</dt><dd>{event.payer_account_id}</dd></div><div><dt>Topic</dt><dd>{event.topic_id}</dd></div><div><dt>Consensus</dt><dd>{event.consensus_timestamp}</dd></div><div><dt>Event hash</dt><dd>{event.event_hash}</dd></div><div><dt>World proof</dt><dd>First-Shout gate only; not embedded in this row</dd></div><div><dt>Later verification</dt><dd>Use Ballot v2 artifact and World anchor evidence</dd></div></dl><div className="evidence-links"><a href={`https://testnet.mirrornode.hedera.com/api/v1/topics/${event.topic_id}/messages/${event.sequence_number}`} target="_blank" rel="noreferrer">Topic message <ExternalLink size={13} /></a><a href={`https://testnet.mirrornode.hedera.com/api/v1/transactions/${encodeURIComponent(event.transaction_id)}`} target="_blank" rel="noreferrer">Transaction <ExternalLink size={13} /></a></div></section>}
+    {expanded && <section className="shout-evidence" id={evidenceId}><h3>Shout evidence</h3><p>This wallet-signed Shout was matched to one exact Hedera topic message. It proves the payer and message bytes recorded on HCS; it is not a Ballot v2 record.</p><dl><div><dt>Payer</dt><dd>{event.payer_account_id}</dd></div><div><dt>Topic</dt><dd>{event.topic_id}</dd></div><div><dt>Consensus</dt><dd>{event.consensus_timestamp}</dd></div><div><dt>Event hash</dt><dd>{event.event_hash}</dd></div></dl><h4>World grant binding</h4><p className="grant-note">The API checked this Room-scoped eligibility before preparing the first Shout. Later Shouts inherit that eligibility; raw World proof is not reused or exposed.</p><dl className="grant-fields"><div><dt>Scope</dt><dd>FIRST_SHOUT_GATE</dd></div><div><dt>Room</dt><dd>{message.r ?? event.room_id}</dd></div><div><dt>Manifest</dt><dd>{message.m ?? "Not decoded"}</dd></div><div><dt>Wallet</dt><dd>{message.a ?? event.payer_account_id}</dd></div><div><dt>Reuse</dt><dd>Same Room + manifest + payer</dd></div><div><dt>Nullifier commitment</dt><dd>Service-held · not exposed by current API</dd></div><div><dt>Verified at</dt><dd>Service-held · not exposed by current API</dd></div><div><dt>Attestation</dt><dd>Service-attested; not independently replayable from this row</dd></div></dl><p className="later-proof-note"><strong>Independent later verification:</strong> Ballot v2 commits the public artifact and World anchor needed for replay.</p><div className="evidence-links"><a href={`https://testnet.mirrornode.hedera.com/api/v1/topics/${event.topic_id}/messages/${event.sequence_number}`} target="_blank" rel="noreferrer">Topic message <ExternalLink size={13} /></a><a href={`https://testnet.mirrornode.hedera.com/api/v1/transactions/${mirrorTransactionId(event.transaction_id)}`} target="_blank" rel="noreferrer">Transaction <ExternalLink size={13} /></a></div></section>}
   </article>;
 }
 
@@ -580,6 +594,7 @@ function RankingsView({ rooms, selectedRoom, projectionState, onSelectRoom }: { 
   const formalRecordCount = formal ? formal.summary.recorded_unverified + formal.summary.unverifiable + formal.summary.verified + formal.summary.invalid : 0;
   return (
     <main className="page collection-page">
+      <CollectionBrand />
       <header className="collection-header"><p className="kicker">ONE WALLET · ONE CURRENT SHOUT</p><h1>Rankings</h1><p>Each Room ranks the latest HCS-confirmed Shout from each payer. This is a wallet-based demo vote.</p></header>
       <label className="room-selector"><span>Room</span><select value={selectedRoom?.id ?? ""} onChange={(event) => { const room = rooms.find((candidate) => candidate.id === event.target.value); if (room) onSelectRoom(room); }}>{rooms.map((room) => <option value={room.id} key={room.id}>{room.name}</option>)}</select></label>
       {selectedRoom && <section className="pending-result"><Trophy /><div><p className="kicker gold">{selectedRoom.phase === "LIVE" ? "PROVISIONAL" : selectedRoom.phase}</p><h2>{selectedRoom.name}</h2><p>{projectionState.status === "ready" ? `${projectionState.projection.confirmed_shout_count} confirmed Shout${projectionState.projection.confirmed_shout_count === 1 ? "" : "s"}` : "Ranking evidence is loading."}</p></div><span>{selectedRoom.phase}</span></section>}
@@ -598,6 +613,7 @@ function FormalRanking({ title, entries, room }: { title: string; entries: RoomP
 function ShelfView({ items, onRemove }: { items: ShelfItem[]; onRemove: (roomId: string, workId: string) => void }) {
   return (
     <main className="page collection-page shelf-page">
+      <CollectionBrand />
       <header className="collection-header shelf-header"><div><p className="kicker">MY OSHIKATSU</p><h1>My Shelf</h1><p>Keep up to three favorites from any Room on this device.</p></div><div className="shelf-capacity" aria-label={`${items.length} of 3 Shelf slots used`}><strong>{items.length}</strong><span>/ 3 saved</span></div></header>
       <section className="shelf-grid" aria-label="My Top 3">{[0,1,2].map((slot)=>{const work=items[slot];return <article className={work ? "shelf-slot filled" : "shelf-slot empty"} key={slot}>{work?<><div className="shelf-cover"><img src={work.cover_url} alt={`${work.title} cover`} /><span>#{slot+1}</span><button type="button" onClick={() => onRemove(work.room_id, work.id)} aria-label={`Remove ${work.title} from My Shelf`}><Plus /></button></div><strong>{work.title}</strong><small>{work.room_name}</small></>:<><div className="empty-cover"><img src="/assets/room-stage.webp" alt="" /><span><Plus /><b>Open slot</b></span></div><strong>Pick from a Room</strong><small>Use Add to My Shelf</small></>}</article>})}</section>
       <section className="history-strip shelf-local-note"><HardDrive /><div><p className="kicker">LOCAL SHELF</p><h2>Saved only in this browser</h2><p>Shelf picks are not protocol data and never affect Room rankings. Only a Mirror-confirmed Shout is counted.</p></div></section>
@@ -637,6 +653,7 @@ function ProfileView({ onRoomsChanged }: { onRoomsChanged: () => void }) {
 
   return (
     <main className="page collection-page profile-page">
+      <CollectionBrand />
       <header className="profile-hero"><img src="/assets/room-stage.webp" alt="Readers gathered at an Oshikatsu event" /><div className="profile-hero-shade" /><div className="profile-hero-copy"><div className="profile-avatar"><img src="/assets/profile-avatar.webp" alt="Reader avatar" /></div><p className="kicker">MY PROFILE</p><h1>Guest Reader</h1></div></header>
       <section className="demo-room-tools" aria-labelledby="demo-room-title">
         <div className="section-heading"><div><p className="kicker gold">DEMO TOOLS</p><h2 id="demo-room-title">Create a Room for the demo</h2></div><button className="primary-action" type="button" onClick={() => void handleCreateDemoRoom()} disabled={demoRooms.status === "working" || demoRooms.rooms.length >= 3}><Plus size={18} /> {demoRooms.status === "working" ? "Working..." : "Create random Room"}</button></div>

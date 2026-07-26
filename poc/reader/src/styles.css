@@ -31,6 +31,9 @@ h1, h2 { font-family: "Barlow Condensed", "Noto Sans JP", sans-serif; letter-spa
 
 .brand-bar, .room-header { position: relative; z-index: 5; display: flex; min-height: 64px; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 20px; background: rgba(5, 2, 11, 0.88); border-bottom: 1px solid var(--outline); backdrop-filter: blur(18px); }
 .brand-logo { display: block; width: clamp(150px, 18vw, 210px); height: auto; max-height: 52px; object-fit: contain; object-position: left center; }
+.brand-logo.compact { width: 118px; max-height: 38px; flex: 0 0 auto; }
+.collection-brand { max-width: 900px; display: flex; align-items: center; margin: -22px auto 28px; padding-bottom: 12px; border-bottom: 1px solid var(--outline); }
+.collection-brand .brand-logo { width: min(190px, 48vw); }
 .account-pill, .phase-badge { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 12px; border: 1px solid var(--outline); border-radius: 999px; color: #fff; background: rgba(255,255,255,.06); font-size: .72rem; font-weight: 700; }
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #42ff9e; box-shadow: 0 0 12px #42ff9e; }
 
@@ -81,6 +84,7 @@ h1, h2 { font-family: "Barlow Condensed", "Noto Sans JP", sans-serif; letter-spa
 
 .room-header { position: sticky; top: 0; }
 .room-header > div { flex: 1; }
+.room-header > .brand-logo + div { min-width: 0; }
 .room-header .kicker { margin-bottom: 4px; }
 .icon-button { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-items: center; border: 1px solid var(--outline); border-radius: 50%; background: rgba(255,255,255,.06); }
 .room-layout { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); }
@@ -164,7 +168,11 @@ h1, h2 { font-family: "Barlow Condensed", "Noto Sans JP", sans-serif; letter-spa
 .evidence-toggle { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 5px 0; color: var(--cyan); background: transparent; font-size: .68rem; font-weight: 800; }
 .shout-evidence { grid-column: 1 / -1; padding: 12px; border: 1px solid var(--outline); background: #08050d; }
 .shout-evidence h3 { margin: 0 0 6px; font-size: .9rem; }
+.shout-evidence h4 { margin: 14px 0 6px; color: var(--gold); font-size: .75rem; text-transform: uppercase; }
 .shout-evidence > p { color: var(--muted); font-size: .67rem; line-height: 1.45; }
+.shout-evidence .grant-note, .shout-evidence .later-proof-note { margin-bottom: 8px; }
+.shout-evidence .grant-fields { padding: 8px; border: 1px solid rgba(247,203,96,.24); background: rgba(247,203,96,.04); }
+.shout-evidence .later-proof-note strong { color: var(--cyan); }
 .shout-evidence dl { display: grid; gap: 6px; margin: 10px 0; }
 .shout-evidence dl div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; }
 .shout-evidence dt { color: var(--muted); font-size: .62rem; }
@@ -326,6 +334,9 @@ h1, h2 { font-family: "Barlow Condensed", "Noto Sans JP", sans-serif; letter-spa
   .brand-bar { gap: 10px; padding-block: 10px; }
   .brand-logo { width: min(42vw, 170px); }
   .brand-bar .account-pill { padding-inline: 10px; font-size: .66rem; }
+  .room-header .brand-logo.compact { width: 82px; }
+  .room-header { gap: 9px; }
+  .room-header > div strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .participant-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .participant-profile-heading { align-items: start; flex-direction: column; gap: 4px; }
   .special-room-page .work-stage { min-height: 1040px; }
