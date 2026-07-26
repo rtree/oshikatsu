@@ -144,11 +144,11 @@ const lifecycleBinding = {
 test("Ballot UPDATE and WITHDRAW codecs bind capability and payer canonically", () => {
   const updateBytes = encodeBallotUpdateEvent({ ...lifecycleBinding, nomineeIds: ["cadet", "divine", "level-up"] });
   const withdrawBytes = encodeBallotWithdrawEvent(lifecycleBinding);
-  assert.equal(new TextDecoder().decode(updateBytes), `{"v":1,"t":"u","r":"lisbon-main","m":"${"4".repeat(64)}","c":"${"a".repeat(64)}","a":"0.0.9706029","n":["cadet","divine","level-up"],"e":"7ddc9081a417849d60f6761ca012e32586ad2bec53f0b722675de45a4b6c6d94"}`);
+  assert.equal(new TextDecoder().decode(updateBytes), `{"v":1,"t":"u","r":"lisbon-main","m":"${"4".repeat(64)}","c":"${"a".repeat(64)}","a":"0.0.9706029","n":["cadet","divine","level-up"],"e":"808c19d19608b0a2dcbca2521d0c558046d3c413665e9d46b1fd29d51e61ba45"}`);
   assert.deepEqual(decodeBallotUpdateEvent(updateBytes), JSON.parse(new TextDecoder().decode(updateBytes)));
   assert.deepEqual(decodeBallotWithdrawEvent(withdrawBytes), JSON.parse(new TextDecoder().decode(withdrawBytes)));
   assert.notEqual(decodeBallotUpdateEvent(updateBytes).e, decodeBallotWithdrawEvent(withdrawBytes).e);
-  assert.throws(() => encodeBallotUpdateEvent({ ...lifecycleBinding, accountId: "0.0.2", nomineeIds: ["cadet", "divine", "level-up"] }), /identity binding/);
+  assert.throws(() => encodeBallotUpdateEvent({ ...lifecycleBinding, accountId: "0x2", nomineeIds: ["cadet", "divine", "level-up"] }), /identity binding/);
   const unknown = new TextEncoder().encode(new TextDecoder().decode(withdrawBytes).replace('"e":', '"unknown":true,"e":'));
   assert.throws(() => decodeBallotWithdrawEvent(unknown), /unknown/);
 });
@@ -158,7 +158,7 @@ test("Ballot SEAL codec commits authority, deadline, cutoff, policy, and result"
     roomId: "lisbon-main",
     manifestHash: "4".repeat(64),
     authorityAccountId: "0.0.42",
-    deadline: "1785008000.000000000",
+    deadline: "2026-07-26T03:33:20.000Z",
     cutoffSequence: 17,
     policyId: "ordered-borda-3-2-1-v1",
     resultHash: "b".repeat(64),
@@ -166,6 +166,6 @@ test("Ballot SEAL codec commits authority, deadline, cutoff, policy, and result"
   const bytes = encodeBallotSealEvent(input);
   assert.deepEqual(decodeBallotSealEvent(bytes), JSON.parse(new TextDecoder().decode(bytes)));
   assert.throws(() => decodeBallotSealEvent(new TextEncoder().encode(new TextDecoder().decode(bytes).replace('"q":17', '"q":18'))), /hash is invalid/);
-  assert.throws(() => encodeBallotSealEvent({ ...input, deadline: "1785008000" }), /Hedera timestamp/);
+  assert.throws(() => encodeBallotSealEvent({ ...input, deadline: "2026-07-26T03:33:20Z" }), /canonical ISO/);
   assert.throws(() => encodeBallotSealEvent({ ...input, cutoffSequence: -1 }), /cutoff/);
 });

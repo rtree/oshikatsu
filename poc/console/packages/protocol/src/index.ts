@@ -437,7 +437,7 @@ export function decodeBallotWithdrawEvent(bytes: Uint8Array): BallotWithdrawEven
 export function createBallotSealEvent(input: BallotSealEventInput): BallotSealEvent {
   if (!ID_PATTERN.test(input.roomId) || !ID_PATTERN.test(input.policyId) || !ACCOUNT_PATTERN.test(input.authorityAccountId)) fail("Ballot SEAL identity binding is invalid.");
   if (!HASH_PATTERN.test(input.manifestHash) || !HASH_PATTERN.test(input.resultHash)) fail("Ballot SEAL hash binding is invalid.");
-  if (!/^(0|[1-9]\d*)\.\d{9}$/.test(input.deadline)) fail("Ballot SEAL deadline must be a Hedera timestamp.");
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(input.deadline) || new Date(input.deadline).toISOString() !== input.deadline) fail("Ballot SEAL deadline must be a canonical ISO timestamp.");
   if (!Number.isSafeInteger(input.cutoffSequence) || input.cutoffSequence < 0) fail("Ballot SEAL cutoff sequence is invalid.");
   const body = { v: 1 as const, t: "z" as const, r: input.roomId, m: input.manifestHash, a: input.authorityAccountId, d: input.deadline, q: input.cutoffSequence, p: input.policyId, x: input.resultHash };
   return { ...body, e: domainHash("oshikatsu:ballot-seal:v1", body) };
