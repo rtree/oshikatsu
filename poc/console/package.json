@@ -22,6 +22,7 @@
     "capture:world": "node scripts/capture-world-production-evidence.mjs",
     "verify:world-historical": "node scripts/verify-world-historical.mjs",
     "materialize:world-artifact": "node scripts/materialize-world-artifact.mjs",
+    "rebuild:ballot-capability": "tsx scripts/rebuild-ballot-capability.ts",
     "security:check": "node scripts/check-ai-boundary.mjs",
     "test": "npm run test --workspaces --if-present"
   }

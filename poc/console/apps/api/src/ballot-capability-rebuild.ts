@@ -10,6 +10,7 @@ export type MirrorBallotMessage = {
   payer_account_id: string;
   sequence_number: number;
   consensus_timestamp: string;
+  chunk_total: number;
 };
 
 export type RebuildBallotCapabilityInput = {
@@ -26,7 +27,8 @@ export function rebuildBallotCapability(
   const artifact = decodeWorldArtifact(input.artifact_bytes);
   if (!/^0\.0\.\d+$/.test(input.mirror.payer_account_id) ||
       !Number.isSafeInteger(input.mirror.sequence_number) || input.mirror.sequence_number < 1 ||
-      !/^\d+\.\d{9}$/.test(input.mirror.consensus_timestamp)) {
+      !/^\d+\.\d{9}$/.test(input.mirror.consensus_timestamp) ||
+      input.mirror.chunk_total !== 1) {
     throw new Error("Mirror ballot metadata is invalid.");
   }
   if (worldArtifactSha256(input.artifact_bytes) !== event.d ||
