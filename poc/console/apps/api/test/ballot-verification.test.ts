@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  foldBallotCapabilities,
   foldBallotVerification,
   rankBallots,
+  type CapabilityBallotRecord,
   type BallotVerificationObservation,
   type RankedBallotRecord,
 } from "../src/ballot-verification.js";
@@ -69,6 +71,59 @@ test("duplicate observations are idempotent", () => {
     foldBallotVerification([unavailable, unavailable]),
     foldBallotVerification([unavailable]),
   );
+});
+
+function capabilityRecord(overrides: Partial<CapabilityBallotRecord>): CapabilityBallotRecord {
+  return {
+    room_id: "room-a",
+    event_hash: "a".repeat(64),
+    payer_account_id: "0.0.1",
+    nullifier_commitment: "1".repeat(64),
+    sequence_number: 1,
+    event_type: "INITIAL",
+    verification: foldBallotVerification([verified]),
+    ...overrides,
+  };
+}
+
+test("capability fold grants only verified Ballot v2 evidence in HCS order", () => {
+  const outcomes = foldBallotCapabilities([
+    capabilityRecord({ event_hash: "b".repeat(64), payer_account_id: "0.0.2", nullifier_commitment: "2".repeat(64), sequence_number: 20 }),
+    capabilityRecord({ event_hash: "a".repeat(64), sequence_number: 10 }),
+    capabilityRecord({ event_hash: "c".repeat(64), payer_account_id: "0.0.3", nullifier_commitment: "3".repeat(64), sequence_number: 5, verification: foldBallotVerification([]) }),
+  ]);
+
+  assert.deepEqual(outcomes.map(({ event_hash, status }) => [event_hash, status]), [
+    ["c".repeat(64), "EVIDENCE_NOT_VERIFIED"],
+    ["a".repeat(64), "CAPABILITY_GRANTED"],
+    ["b".repeat(64), "CAPABILITY_GRANTED"],
+  ]);
+});
+
+test("later verified Room/nullifier and Room/payer claims fail closed", () => {
+  const outcomes = foldBallotCapabilities([
+    capabilityRecord({ event_hash: "d".repeat(64), payer_account_id: "0.0.2", nullifier_commitment: "2".repeat(64), sequence_number: 40 }),
+    capabilityRecord({ event_hash: "a".repeat(64), sequence_number: 10 }),
+    capabilityRecord({ event_hash: "c".repeat(64), payer_account_id: "0.0.1", nullifier_commitment: "1".repeat(64), sequence_number: 30 }),
+    capabilityRecord({ event_hash: "b".repeat(64), payer_account_id: "0.0.2", nullifier_commitment: "1".repeat(64), sequence_number: 20 }),
+  ]);
+
+  assert.deepEqual(outcomes.map(({ event_hash, status, conflicts_with }) => [event_hash, status, conflicts_with]), [
+    ["a".repeat(64), "CAPABILITY_GRANTED", []],
+    ["b".repeat(64), "NULLIFIER_CONFLICT", ["a".repeat(64)]],
+    ["c".repeat(64), "NULLIFIER_AND_PAYER_CONFLICT", ["a".repeat(64)]],
+    ["d".repeat(64), "CAPABILITY_GRANTED", []],
+  ]);
+});
+
+test("capability fold is deterministic for input order and fails closed without a nullifier", () => {
+  const missingNullifier = capabilityRecord({ event_hash: "b".repeat(64), payer_account_id: "0.0.2", nullifier_commitment: null, sequence_number: 20 });
+  const first = capabilityRecord({ event_hash: "a".repeat(64), sequence_number: 10 });
+  assert.deepEqual(
+    foldBallotCapabilities([missingNullifier, first]),
+    foldBallotCapabilities([first, missingNullifier]),
+  );
+  assert.equal(foldBallotCapabilities([missingNullifier])[0]?.status, "UNIQUENESS_UNVERIFIABLE");
 });
 
 function record(overrides: Partial<RankedBallotRecord>): RankedBallotRecord {

@@ -40,6 +40,30 @@ export type RankedBallotRecord = {
   verification: BallotVerificationFold;
 };
 
+export type CapabilityBallotRecord = {
+  room_id: string;
+  event_hash: string;
+  payer_account_id: string;
+  nullifier_commitment: string | null;
+  sequence_number: number;
+  event_type: "INITIAL" | "UPDATE" | "WITHDRAW";
+  verification: BallotVerificationFold;
+};
+
+export type BallotCapabilityStatus =
+  | "CAPABILITY_GRANTED"
+  | "EVIDENCE_NOT_VERIFIED"
+  | "UNIQUENESS_UNVERIFIABLE"
+  | "NULLIFIER_CONFLICT"
+  | "PAYER_CONFLICT"
+  | "NULLIFIER_AND_PAYER_CONFLICT";
+
+export type BallotCapabilityOutcome = CapabilityBallotRecord & {
+  status: BallotCapabilityStatus;
+  capability_granted: boolean;
+  conflicts_with: string[];
+};
+
 export type RankingPolicy = {
   policy_id: string;
   position_points: [number, number, number];
@@ -93,6 +117,48 @@ export function foldBallotVerification(
     counted: status === "VERIFIED",
     capability_eligible: status === "VERIFIED",
   };
+}
+
+export function foldBallotCapabilities(records: CapabilityBallotRecord[]): BallotCapabilityOutcome[] {
+  const nullifierClaims = new Map<string, string>();
+  const payerClaims = new Map<string, string>();
+  return [...records]
+    .sort((left, right) =>
+      left.room_id.localeCompare(right.room_id) ||
+      left.sequence_number - right.sequence_number ||
+      left.event_hash.localeCompare(right.event_hash),
+    )
+    .map((record) => {
+      if (record.event_type !== "INITIAL" || !record.verification.capability_eligible) {
+        return { ...record, status: "EVIDENCE_NOT_VERIFIED" as const, capability_granted: false, conflicts_with: [] };
+      }
+      if (!record.nullifier_commitment) {
+        return { ...record, status: "UNIQUENESS_UNVERIFIABLE" as const, capability_granted: false, conflicts_with: [] };
+      }
+
+      const nullifierKey = `${record.room_id}\0${record.nullifier_commitment}`;
+      const payerKey = `${record.room_id}\0${record.payer_account_id}`;
+      const nullifierConflict = nullifierClaims.get(nullifierKey);
+      const payerConflict = payerClaims.get(payerKey);
+      const conflictsWith = [...new Set([nullifierConflict, payerConflict].filter((value): value is string => Boolean(value)))].sort();
+      const status = nullifierConflict && payerConflict
+        ? "NULLIFIER_AND_PAYER_CONFLICT"
+        : nullifierConflict
+          ? "NULLIFIER_CONFLICT"
+          : payerConflict
+            ? "PAYER_CONFLICT"
+            : "CAPABILITY_GRANTED";
+      if (status === "CAPABILITY_GRANTED") {
+        nullifierClaims.set(nullifierKey, record.event_hash);
+        payerClaims.set(payerKey, record.event_hash);
+      }
+      return {
+        ...record,
+        status,
+        capability_granted: status === "CAPABILITY_GRANTED",
+        conflicts_with: conflictsWith,
+      };
+    });
 }
 
 export function rankBallots(

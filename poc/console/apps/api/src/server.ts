@@ -5,7 +5,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { requireAdmin } from "./admin-auth.js";
 import { environment, getWorldIdEnvironment } from "./config.js";
-import { ballotPrepareSchema, ballotRequestSchema, ballotV2ArtifactPrepareSchema, createBallotRequest, getBallotPreparation, getBallotStatus, listCapabilities, prepareBallot, prepareBallotV2FromArtifact } from "./ballots.js";
+import { ballotPrepareSchema, ballotRequestSchema, ballotV2ArtifactPrepareSchema, createBallotRequest, getBallotPreparation, getBallotStatus, prepareBallot, prepareBallotV2FromArtifact } from "./ballots.js";
 import { addVerificationObservation, projectBallotRankings, verificationObservationSchema } from "./ballot-projection.js";
 import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove, rankRoomWorks } from "./groove.js";
 import { archiveRoom, createAdminRoom, createRoom, createRoomSchema, getAdminRoom, getRoom, getRoomAction, listActions, listAdminRooms, listRooms, requireRoomAction, retireAction, roomIdSchema } from "./rooms.js";
@@ -103,7 +103,7 @@ function adminError(response: express.Response, error: unknown) {
 
 function operationError(response: express.Response, error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : fallback;
-  if (message === "ROOM_ARCHIVED" || message === "ACTION_RETIRED" || message === "DUPLICATE_SHOUT") {
+  if (message === "ROOM_ARCHIVED" || message === "ACTION_RETIRED") {
     response.status(409).json({ error: message });
     return;
   }
@@ -225,12 +225,13 @@ app.get("/api/projection/rooms/:roomId", async (request, response) => {
       return;
     }
     const groove = await listConfirmedGroove(room.id);
+    const { capabilities, ...rankings } = await projectBallotRankings(room.id, room.works.map((work) => work.id));
     response.json({
       room,
       groove,
       ranking: rankRoomWorks(room.id, room.works.map((work) => work.id), groove),
       confirmed_shout_count: groove.length,
-      ballot: { status: "OPTIMISTIC", rankings: await projectBallotRankings(room.id, room.works.map((work) => work.id)), capabilities: await listCapabilities(room.id) },
+      ballot: { status: "OPTIMISTIC", rankings, capabilities },
       revision: new Date().toISOString(),
     });
   } catch {

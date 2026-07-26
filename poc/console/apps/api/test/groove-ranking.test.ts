@@ -20,15 +20,27 @@ function shout(overrides: Partial<ConfirmedShout>): ConfirmedShout {
   };
 }
 
-test("one payer contributes only the earliest Shout in a Room", () => {
+test("one payer contributes only the latest HCS-confirmed Shout in a Room", () => {
   const events = [
     shout({ prepare_id: "later", work_id: "work-b", sequence_number: 20 }),
     shout({ prepare_id: "earlier", work_id: "work-a", sequence_number: 10 }),
     shout({ prepare_id: "other-room", room_id: "room-b", work_id: "work-b", sequence_number: 5 }),
   ];
   assert.deepEqual(rankRoomWorks("room-a", ["work-a", "work-b"], events), [
-    { rank: 1, work_id: "work-a", shout_count: 1, tied: false },
-    { rank: 2, work_id: "work-b", shout_count: 0, tied: false },
+    { rank: 1, work_id: "work-b", shout_count: 1, tied: false },
+    { rank: 2, work_id: "work-a", shout_count: 0, tied: false },
+  ]);
+});
+
+test("current Shout selection is deterministic when sequence numbers tie", () => {
+  const events = [
+    shout({ prepare_id: "older-timestamp", work_id: "work-a", sequence_number: 10, consensus_timestamp: "1.000000001" }),
+    shout({ prepare_id: "lower-hash", work_id: "work-a", sequence_number: 10, consensus_timestamp: "2.000000001", event_hash: "a".repeat(64) }),
+    shout({ prepare_id: "higher-hash", work_id: "work-b", sequence_number: 10, consensus_timestamp: "2.000000001", event_hash: "b".repeat(64) }),
+  ];
+  assert.deepEqual(rankRoomWorks("room-a", ["work-a", "work-b"], events), [
+    { rank: 1, work_id: "work-b", shout_count: 1, tied: false },
+    { rank: 2, work_id: "work-a", shout_count: 0, tied: false },
   ]);
 });
 

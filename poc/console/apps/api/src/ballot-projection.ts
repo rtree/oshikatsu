@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { getFirestore } from "./firestore.js";
 import {
+  foldBallotCapabilities,
   foldBallotVerification,
   rankBallots,
   type BallotVerificationObservation,
@@ -29,6 +30,7 @@ type StoredBallotRecord = Omit<RankedBallotRecord, "verification"> & {
   room_id: string;
   topic_id: string;
   consensus_timestamp: string;
+  nullifier_commitment?: string;
   artifact_sha256?: string;
   artifact_reference?: string;
   world_block_number?: string;
@@ -66,6 +68,15 @@ export async function projectBallotRankings(roomId: string, nomineeIds: string[]
   }));
   const provisional = rankBallots(nomineeIds, records, previewRankingPolicy, "PROVISIONAL");
   const verified = rankBallots(nomineeIds, records, previewRankingPolicy, "VERIFIED");
+  const capabilities = foldBallotCapabilities(records.map((record) => ({
+    room_id: record.room_id,
+    event_hash: record.event_hash,
+    payer_account_id: record.payer_account_id,
+    nullifier_commitment: record.nullifier_commitment ?? null,
+    sequence_number: record.sequence_number,
+    event_type: record.event_type,
+    verification: record.verification,
+  })));
   const summary = {
     recorded_unverified: records.filter((record) => record.verification.status === "RECORDED_UNVERIFIED").length,
     unverifiable: records.filter((record) => record.verification.status === "UNVERIFIABLE").length,
@@ -77,6 +88,7 @@ export async function projectBallotRankings(roomId: string, nomineeIds: string[]
     policy: { ...previewRankingPolicy, binding: "PREVIEW" as const },
     provisional: { label: "Provisional ranking", includes: ["RECORDED_UNVERIFIED", "UNVERIFIABLE", "VERIFIED"], result_hash: resultHash("PROVISIONAL", provisional), entries: provisional },
     verified: { label: "Verified preview", includes: ["VERIFIED"], result_hash: resultHash("VERIFIED", verified), entries: verified },
+    capabilities,
     summary,
   };
 }

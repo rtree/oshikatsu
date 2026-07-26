@@ -122,10 +122,11 @@ export async function prepareBallotV2FromArtifact(input: z.infer<typeof ballotV2
   await requireRoomAction(room.id, "BALLOT_V1");
   if (room.phase !== "LIVE" || room.manifest_hash !== artifact.manifest_hash || room.world_action !== artifact.action) throw new Error("Artifact Room binding mismatch.");
   assertNominees(room.works, artifact.nominee_ids);
+  const nullifierCommitment = domainHash("oshikatsu:world-nullifier:v1", { r: room.id, n: artifact.proof.responses[0].nullifier });
   const id = `ballot-${input.artifact_sha256.slice(0, 32)}`;
   const ballotBytes = encodeBallotEventV2({ ballotId: id, roomId: room.id, manifestHash: room.manifest_hash, nomineeIds: artifact.nominee_ids, accountId: artifact.account_id, artifactHash: input.artifact_sha256, artifactReference: input.artifact_reference, worldBlockNumber: artifact.anchor.block_number, worldBlockHash: artifact.anchor.block_hash });
   const event = JSON.parse(new TextDecoder().decode(ballotBytes)) as { e: string };
-  const preparation = { id, version: 2, room_id: room.id, nominee_ids: artifact.nominee_ids, topic_id: room.topic_id, account_id: artifact.account_id, artifact_sha256: input.artifact_sha256, artifact_reference: input.artifact_reference, world_block_number: artifact.anchor.block_number, world_block_hash: artifact.anchor.block_hash, message_base64: Buffer.from(ballotBytes).toString("base64"), message_bytes: ballotBytes.length, event_hash: event.e, expires_at: new Date(Date.now() + 30 * 60_000).toISOString() };
+  const preparation = { id, version: 2, room_id: room.id, nominee_ids: artifact.nominee_ids, topic_id: room.topic_id, account_id: artifact.account_id, nullifier_commitment: nullifierCommitment, artifact_sha256: input.artifact_sha256, artifact_reference: input.artifact_reference, world_block_number: artifact.anchor.block_number, world_block_hash: artifact.anchor.block_hash, message_base64: Buffer.from(ballotBytes).toString("base64"), message_bytes: ballotBytes.length, event_hash: event.e, expires_at: new Date(Date.now() + 30 * 60_000).toISOString() };
   const referenceDocument = getFirestore().collection("ballot_preparations").doc(id);
   await getFirestore().runTransaction(async (transaction) => {
     const existing = await transaction.get(referenceDocument);
@@ -170,7 +171,7 @@ export async function getBallotStatus(prepareId: string, transactionId: string) 
       sequence_number: message.sequence_number,
       consensus_timestamp: message.consensus_timestamp,
       event_type: "INITIAL",
-      ...(preparation.version === 2 ? { artifact_sha256: preparation.artifact_sha256, artifact_reference: preparation.artifact_reference, world_block_number: preparation.world_block_number, world_block_hash: preparation.world_block_hash } : {}),
+      ...(preparation.version === 2 ? { nullifier_commitment: preparation.nullifier_commitment, artifact_sha256: preparation.artifact_sha256, artifact_reference: preparation.artifact_reference, world_block_number: preparation.world_block_number, world_block_hash: preparation.world_block_hash } : {}),
     });
   } catch (error) {
     if (error instanceof Error && error.message.includes("ALREADY_EXISTS")) {
@@ -179,5 +180,3 @@ export async function getBallotStatus(prepareId: string, transactionId: string) 
     throw error;
   }
 }
-
-export async function listCapabilities(roomId: string) { const snapshot = await getFirestore().collection("ballot_capabilities").where("room_id", "==", roomId).limit(100).get(); return snapshot.docs.map((doc) => doc.data()); }

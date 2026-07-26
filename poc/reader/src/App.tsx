@@ -29,6 +29,19 @@ type ProjectionState =
   | { status: "ready"; projection: RoomProjection }
   | { status: "error" };
 
+type ShelfItem = RoomWork & { room_id: string; room_name: string };
+
+const shelfStorageKey = "oshikatsu-reader-shelf-v1";
+
+function loadShelf() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(shelfStorageKey) ?? "[]") as unknown;
+    return Array.isArray(stored) ? stored.filter((item): item is ShelfItem => Boolean(item && typeof item === "object" && "id" in item && "title" in item && "cover_url" in item && "room_id" in item && "room_name" in item)).slice(0, 3) : [];
+  } catch {
+    return [];
+  }
+}
+
 const reactions = [
   { id: "peak", icon: "/assets/ico08.webp", label: "Peak Chapter", count: "8,321" },
   { id: "cried", icon: "/assets/ico12.webp", label: "Cried My Eyes Out", count: "2,482" },
@@ -60,10 +73,10 @@ export function App() {
   const [selectedReaction, setSelectedReaction] = useState(reactions[0].id);
   const [shout, setShout] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [grooveState, setGrooveState] = useState<"idle" | "connecting" | "preparing" | "approving" | "confirming" | "confirmed" | "duplicate">("idle");
+  const [grooveState, setGrooveState] = useState<"idle" | "connecting" | "preparing" | "approving" | "confirming" | "confirmed">("idle");
   const [grooveError, setGrooveError] = useState<string | null>(null);
   const [grooveEvidence, setGrooveEvidence] = useState<Extract<GrooveStatus, { status: "CONFIRMED" }> | null>(null);
-  const [topThree, setTopThree] = useState<string[]>([]);
+  const [shelfItems, setShelfItems] = useState<ShelfItem[]>(loadShelf);
   const rooms = roomsState.status === "ready" ? roomsState.rooms : [];
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
   const selectedWork = selectedRoom?.works.find((work) => work.id === selectedWorkId) ?? selectedRoom?.works[0] ?? null;
@@ -89,19 +102,23 @@ export function App() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [view]);
 
+  useEffect(() => {
+    localStorage.setItem(shelfStorageKey, JSON.stringify(shelfItems));
+  }, [shelfItems]);
+
   function toggleTopThree() {
-    if (!selectedWork) return;
-    setTopThree((current) => {
-      if (current.includes(selectedWork.id)) return current.filter((id) => id !== selectedWork.id);
+    if (!selectedRoom || !selectedWork) return;
+    setShelfItems((current) => {
+      const key = `${selectedRoom.id}:${selectedWork.id}`;
+      if (current.some((item) => `${item.room_id}:${item.id}` === key)) return current.filter((item) => `${item.room_id}:${item.id}` !== key);
       if (current.length >= 3) return current;
-      return [...current, selectedWork.id];
+      return [...current, { ...selectedWork, room_id: selectedRoom.id, room_name: selectedRoom.name }];
     });
   }
 
   function enterRoom(room: Room) {
     setSelectedRoomId(room.id);
     setSelectedWorkId(room.works[0]?.id ?? null);
-    setTopThree([]);
     setProjectionState({ status: "loading" });
     void loadProjection(room.id);
     setView("room");
@@ -159,8 +176,8 @@ export function App() {
       await loadProjection(selectedRoom.id);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Shout submission failed.";
-      setGrooveError(message === "DUPLICATE_SHOUT" ? "This wallet already has a confirmed Shout in this Room." : message);
-      setGrooveState(message === "DUPLICATE_SHOUT" ? "duplicate" : "idle");
+      setGrooveError(message);
+      setGrooveState("idle");
     }
   }
 
@@ -177,11 +194,11 @@ export function App() {
           onSelectWork={setSelectedWorkId}
           onOpenGroove={() => setDialogOpen(true)}
           onToggleShelf={toggleTopThree}
-          inShelf={topThree.includes(selectedWork.id)}
+          inShelf={shelfItems.some((item) => item.room_id === selectedRoom.id && item.id === selectedWork.id)}
         />
       )}
       {view === "rankings" && <RankingsView rooms={rooms} selectedRoom={selectedRoom} projectionState={projectionState} onSelectRoom={(room) => selectRoom(room, "rankings")} />}
-      {view === "shelf" && <ShelfView topThree={topThree} works={selectedRoom?.works ?? []} />}
+      {view === "shelf" && <ShelfView items={shelfItems} />}
       {view === "profile" && <ProfileView />}
 
       <BottomNav view={view} onNavigate={navigate} />
@@ -246,7 +263,7 @@ function HomeView({ roomsState, onEnterRoom, onRetry }: { roomsState: RoomsState
         ))}
       </section>
 
-      {specialRoom && <section className="special-room"><div><p className="kicker gold">SPECIAL ROOM · {formatDeadline(specialRoom.deadline)}</p><h2>{specialRoom.name}</h2><p>Support one of {specialRoom.works.length} participating teams. One wallet can send one Shout in this Room.</p></div><button type="button" className="ceremony-action" onClick={() => onEnterRoom(specialRoom)}>Enter the ceremony</button></section>}
+      {specialRoom && <section className="special-room"><div><p className="kicker gold">SPECIAL ROOM · {formatDeadline(specialRoom.deadline)}</p><h2>{specialRoom.name}</h2><p>Support one of {specialRoom.works.length} participating teams. Your latest confirmed Shout is your current choice.</p></div><button type="button" className="ceremony-action" onClick={() => onEnterRoom(specialRoom)}>Enter the ceremony</button></section>}
     </main>
   );
 }
@@ -295,7 +312,7 @@ function RoomView({ room, work, selectedWorkId, projectionState, onBack, onSelec
             <p className="kicker">NOW IN THE GROOVE</p>
             <h1 id="work-title">{work.title}</h1>
             <p>{isSpecial ? "Hackathon participant" : work.chapter} · {projectionState.status === "ready" ? `${events.length} confirmed Shout${events.length === 1 ? "" : "s"}` : "Activity unavailable"}</p>
-            <div className="room-facts"><span><UsersRound size={16} /> One wallet, one Shout in this Room</span><span><Clock3 size={16} /> Closes {formatDeadline(room.deadline)}</span></div>
+            <div className="room-facts"><span><UsersRound size={16} /> One current Shout per wallet</span><span><Clock3 size={16} /> Closes {formatDeadline(room.deadline)}</span></div>
             {!isSpecial && <a className="read-link" href={work.reading_url} target="_blank" rel="noreferrer"><BookOpen size={18} /> Read Official Chapter</a>}
           </div>
           <div className="work-actions">
@@ -335,7 +352,7 @@ type GrooveDialogProps = {
   onReactionChange: (id: string) => void;
   onShoutChange: (value: string) => void;
   onSubmit: () => void;
-  state: "idle" | "connecting" | "preparing" | "approving" | "confirming" | "confirmed" | "duplicate";
+  state: "idle" | "connecting" | "preparing" | "approving" | "confirming" | "confirmed";
   error: string | null;
   evidence: Extract<GrooveStatus, { status: "CONFIRMED" }> | null;
 };
@@ -375,10 +392,10 @@ function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShou
           ))}
         </div>
         <label className="shout-field"><span>Shout</span><textarea value={shout} onChange={(event) => updateShout(event.target.value)} placeholder="Drop your post-chapter scream..." /><small>{[...shout].length}/200 · {shoutBytes}/600 UTF-8 bytes</small></label>
-        <button className="primary-action full" type="button" onClick={onSubmit} disabled={shoutBytes === 0 || shoutBytes > 600 || !["idle", "confirmed"].includes(state)}>{state === "idle" ? "Send my one Shout" : state === "connecting" ? "Connect HashPack" : state === "preparing" ? "Checking Room eligibility" : state === "approving" ? "Approve in HashPack" : state === "confirming" ? "Confirming on Mirror" : state === "duplicate" ? "Already Shouted in this Room" : "Confirmed on Hedera"} <Sparkles size={20} /></button>
+        <button className="primary-action full" type="button" onClick={onSubmit} disabled={shoutBytes === 0 || shoutBytes > 600 || !["idle", "confirmed"].includes(state)}>{state === "idle" ? "Send Shout" : state === "connecting" ? "Connect HashPack" : state === "preparing" ? "Checking Room eligibility" : state === "approving" ? "Approve in HashPack" : state === "confirming" ? "Confirming on Mirror" : "Send another Shout"} <Sparkles size={20} /></button>
         {error && <p className="dialog-note" role="alert">{error}</p>}
         {evidence && <p className="dialog-note" role="status">Sequence #{evidence.sequence_number} · {evidence.message_bytes} bytes · {evidence.payer_account_id}</p>}
-        <p className="dialog-note">One wallet can send one confirmed Shout in this Room. This demo rule is not proof of one human, one vote.</p>
+        <p className="dialog-note">You can Shout again. Your latest HCS-confirmed Shout becomes current for this Room; this wallet rule is not proof of one human, one vote.</p>
       </section>
     </div>
   );
@@ -390,7 +407,7 @@ function RankingsView({ rooms, selectedRoom, projectionState, onSelectRoom }: { 
   const formalRecordCount = formal ? formal.summary.recorded_unverified + formal.summary.unverifiable + formal.summary.verified + formal.summary.invalid : 0;
   return (
     <main className="page collection-page">
-      <header className="collection-header"><p className="kicker">ONE WALLET · ONE SHOUT</p><h1>Rankings</h1><p>Each Room has an independent ranking built from Mirror-confirmed Shouts. This is a wallet-based demo vote.</p></header>
+      <header className="collection-header"><p className="kicker">ONE WALLET · ONE CURRENT SHOUT</p><h1>Rankings</h1><p>Each Room ranks the latest HCS-confirmed Shout from each payer. This is a wallet-based demo vote.</p></header>
       <label className="room-selector"><span>Room</span><select value={selectedRoom?.id ?? ""} onChange={(event) => { const room = rooms.find((candidate) => candidate.id === event.target.value); if (room) onSelectRoom(room); }}>{rooms.map((room) => <option value={room.id} key={room.id}>{room.name}</option>)}</select></label>
       {selectedRoom && <section className="pending-result"><Trophy /><div><p className="kicker gold">{selectedRoom.phase === "LIVE" ? "PROVISIONAL" : selectedRoom.phase}</p><h2>{selectedRoom.name}</h2><p>{projectionState.status === "ready" ? `${projectionState.projection.confirmed_shout_count} confirmed Shout${projectionState.projection.confirmed_shout_count === 1 ? "" : "s"}` : "Ranking evidence is loading."}</p></div><span>{selectedRoom.phase}</span></section>}
       {projectionState.status === "error" && <p className="room-list-status" role="alert">Ranking unavailable.</p>}
@@ -405,12 +422,11 @@ function FormalRanking({ title, entries, room }: { title: string; entries: RoomP
   return <section><h3>{title}</h3>{entries.map((entry) => { const work = room.works.find((candidate) => candidate.id === entry.nominee_id); return <div className="formal-ranking-row" key={entry.nominee_id}><strong>{entry.rank}</strong><span>{work?.title ?? entry.nominee_id}</span><em>{entry.points} pts{entry.tied ? " · tied" : ""}</em></div>;})}</section>;
 }
 
-function ShelfView({ topThree, works }: { topThree: string[]; works: RoomWork[] }) {
-  const selected = topThree.map((id) => works.find((work) => work.id === id)).filter((work): work is RoomWork => Boolean(work));
+function ShelfView({ items }: { items: ShelfItem[] }) {
   return (
     <main className="page collection-page">
       <header className="collection-header"><p className="kicker">MY OSHIKATSU</p><h1>My Shelf</h1><p>Your current Top 3 stays editable until the Room deadline.</p></header>
-      <section className="shelf-grid" aria-label="My Top 3">{[0,1,2].map((slot)=>{const work=selected[slot];return <article className="shelf-slot" key={slot}>{work?<><img src={work.cover_url} alt={`${work.title} cover`} /><span>#{slot+1}</span><strong>{work.title}</strong><small>{work.chapter}</small></>:<div className="empty-cover"><BookOpen /></div>}</article>})}</section>
+      <section className="shelf-grid" aria-label="My Top 3">{[0,1,2].map((slot)=>{const work=items[slot];return <article className="shelf-slot" key={slot}>{work?<><img src={work.cover_url} alt={`${work.title} cover`} /><span>#{slot+1}</span><strong>{work.title}</strong><small>{work.room_name}</small></>:<div className="empty-cover"><BookOpen /></div>}</article>})}</section>
       <section className="history-strip"><p className="kicker">LOCAL SHELF</p><h2>Your picks stay on this device</h2><p>This demo does not publish Shelf choices as votes. Only a confirmed Shout affects a Room ranking.</p></section>
     </main>
   );

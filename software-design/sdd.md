@@ -103,6 +103,9 @@ DRAFT
   -> MIRROR_CONFIRMED
       Mirror Nodeからsingle-message exact bytes、payer、consensus metadataを確認済み
 
+  -> RECORDED_UNVERIFIED
+      Mirror確認済みのballotを公開projectionへ記録済みだが、World historical verificationは未完了
+
   -> WAITING_WORLD_FINALITY
      投票時に固定したWorld anchor blockがfinalizedになるまで待機中
 
@@ -127,6 +130,25 @@ VALIDは、初回ballotに含まれるWorld proofと投票情報が正しいこ�
 CAPABILITY_GRANTEDは、さらにそのRoomにおける一人一資格の条件を満たし、当該Hedera Walletが投票を更新・取消できる状態になったことを表す。
 
 UI上で「投票済み」と表示するのは、HCSへの送信が完了したSUBMITTED時点ではなく、公開検証とnullifier競合判定が完了したCAPABILITY_GRANTED時点とする。
+
+RECORDED_UNVERIFIEDはoptimistic receiptであり、投票成立やcapability付与を表さない。Readerは「Hederaへ記録済み・検証待ち」と表示できるが、success表現、正式票数、更新・取消権限には使わない。
+
+## Optimistic Rankingと後日検証
+
+World anchorのfinalityまたはhistorical verificationを待つ間も、ReaderはHCSに記録されたballotから暫定Rankingを表示できる。暫定Rankingと検証済みRankingは同じ公開event集合、同じcutoff、同じ明示policyから別々にfoldする。
+
+| verification state | 暫定Ranking | 検証済みRanking | capability |
+|---|---:|---:|---:|
+| `RECORDED_UNVERIFIED` | 含む | 含まない | 付与しない |
+| `UNVERIFIABLE` | 含む | 含まない | 付与しない |
+| `VERIFIED` / `VALID` | 含む | 含む | uniqueness判定対象 |
+| `INVALID` | 含まない | 含まない | 付与しない |
+
+同一payerのcurrent intentは各Rankingごとに、そのRankingへ含められるeventだけをHCS sequence順でfoldして決める。後続eventがまだUNVERIFIABLEの場合、暫定Rankingはその後続eventを採用し、検証済みRankingは直前のVERIFIED eventを採用できる。後続eventがINVALIDと確定した場合は両方から除外し、直前の有効eventへ戻る。Firestore到着順、verification完了順、API時刻は順位を決めない。
+
+暫定Rankingは常に`Provisional`と表示し、未検証・検証不能・検証済みの件数、policy ID、cutoff、result hashを併記する。配点policyがRoom manifestまたはversioned protocolへ固定されていない場合、検証済み側も`Verified preview`でありFinal Rankingではない。SEALされた正式結果は、manifest-bound policyと固定cutoffから再現された検証済みRankingだけを使用する。
+
+このoptimistic表示のためにOP Stackのfault proof、challenge game、bond、slashingをOshikatsuが再実装する必要はない。Oshikatsuは固定World anchorのfinalityとhistorical verifier callを消費し、後日得られたverification observationから同じevent logを再foldする。
 
 ## 投票Windowと候補集合
 
