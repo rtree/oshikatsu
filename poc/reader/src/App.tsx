@@ -20,7 +20,7 @@ import {
   FileSearch,
   X,
 } from "lucide-react";
-import { archiveDemoRoom, createDemoRoom, fetchDemoRooms, fetchRoomProjection, fetchRooms, type ConfirmedGrooveEvent, type DemoRoomDuration, type Room, type RoomProjection, type RoomWork } from "./rooms-api";
+import { archiveDemoRoom, createDemoRoom, fetchDemoRooms, fetchRoomProjection, fetchRooms, type BallotCapability, type ConfirmedGrooveEvent, type DemoRoomDuration, type Room, type RoomProjection, type RoomWork } from "./rooms-api";
 import { GrooveConfirmationTimeoutError, prepareGroove, waitForGrooveConfirmation, type GrooveStatus } from "./groove-api";
 import { getLinkedHashPackAccount, requireHashPackAccount, submitPreparedGroove } from "./hedera-wallet";
 import { requestGrooveWorldProof, verifyGrooveWorldProof, type GrooveWorldRequest } from "./world-api";
@@ -591,6 +591,7 @@ function GrooveDialog({ reaction, shout, work, onClose, onReactionChange, onShou
 function RankingsView({ rooms, selectedRoom, projectionState, onSelectRoom }: { rooms: Room[]; selectedRoom: Room | null; projectionState: ProjectionState; onSelectRoom: (room: Room) => void }) {
   const ranking = projectionState.status === "ready" ? projectionState.projection.ranking : [];
   const formal = projectionState.status === "ready" ? projectionState.projection.ballot.rankings : null;
+  const capabilities = projectionState.status === "ready" ? projectionState.projection.ballot.capabilities : [];
   const formalRecordCount = formal ? formal.summary.recorded_unverified + formal.summary.unverifiable + formal.summary.verified + formal.summary.invalid : 0;
   return (
     <main className="page collection-page">
@@ -602,8 +603,22 @@ function RankingsView({ rooms, selectedRoom, projectionState, onSelectRoom }: { 
       {projectionState.status === "loading" && <p className="room-list-status" role="status">Loading Room ranking...</p>}
       {selectedRoom && projectionState.status === "ready" && <section className="ranking-preview" aria-labelledby="ranking-preview-title"><div className="section-heading"><div><p className="kicker">ROOM RESULT</p><h2 id="ranking-preview-title">Confirmed Shouts</h2></div></div>{ranking.map((entry) => { const work = selectedRoom.works.find((candidate) => candidate.id === entry.work_id); if (!work) return null; return <div className="ranking-row" key={work.id}><strong>{entry.rank}</strong><img src={work.cover_url} alt="" /><span><b>{work.title}</b><small>{entry.shout_count} Shout{entry.shout_count === 1 ? "" : "s"}</small></span><em>{entry.tied ? "Tied" : selectedRoom.phase === "LIVE" ? "Provisional" : "Final"}</em></div>;})}</section>}
       {selectedRoom && formal && formalRecordCount > 0 && <section className="formal-ranking" aria-labelledby="formal-ranking-title"><div className="section-heading"><div><p className="kicker">FORMAL PROTOCOL PREVIEW</p><h2 id="formal-ranking-title">Provisional and verified</h2></div><span>{formal.policy.policy_id}</span></div><p className="formal-ranking-note">Provisional includes recorded or currently unverifiable ballots. Verified preview includes only historically verified ballots. The preview policy is not manifest-bound and is not a sealed result.</p><div className="formal-ranking-columns"><FormalRanking title={formal.provisional.label} entries={formal.provisional.entries} room={selectedRoom} /><FormalRanking title={formal.verified.label} entries={formal.verified.entries} room={selectedRoom} /></div><p className="formal-ranking-summary">Recorded {formal.summary.recorded_unverified} · Unverifiable {formal.summary.unverifiable} · Verified {formal.summary.verified} · Invalid {formal.summary.invalid}</p></section>}
+      {selectedRoom && formalRecordCount > 0 && <CapabilityDecisions capabilities={capabilities} />}
     </main>
   );
+}
+
+const capabilityCopy: Record<BallotCapability["status"], { label: string; description: string }> = {
+  CAPABILITY_GRANTED: { label: "Capability granted", description: "Verified initial evidence passed the Room-scoped nullifier and payer checks in HCS order. This grants a capability only; it does not say the ballot is current, counted, or sealed." },
+  EVIDENCE_NOT_VERIFIED: { label: "Evidence not verified", description: "No capability was granted. The record is not both an eligible initial Ballot and verified evidence." },
+  UNIQUENESS_UNVERIFIABLE: { label: "Uniqueness unverifiable", description: "The evidence is verified, but Room-scoped uniqueness cannot be checked because no nullifier commitment is available. No capability was granted." },
+  NULLIFIER_CONFLICT: { label: "Nullifier conflict", description: "A prior granted record in this Room already claimed the same nullifier commitment. No capability was granted." },
+  PAYER_CONFLICT: { label: "Payer conflict", description: "A prior granted record in this Room already claimed this payer account. No capability was granted." },
+  NULLIFIER_AND_PAYER_CONFLICT: { label: "Nullifier and payer conflict", description: "Prior granted evidence in this Room conflicts with both the nullifier commitment and payer account. No capability was granted." },
+};
+
+function CapabilityDecisions({ capabilities }: { capabilities: BallotCapability[] }) {
+  return <section className="capability-decisions" aria-labelledby="capability-title"><div className="section-heading"><div><p className="kicker">BALLOT CAPABILITY</p><h2 id="capability-title">HCS-order capability decisions</h2></div></div><p className="formal-ranking-note">These decisions show whether each Ballot v2 record passed the Room-scoped capability gate in HCS order. A granted capability does not mean the ballot is current, counted in a ranking, or included in a sealed result.</p>{capabilities.length === 0 ? <p className="capability-empty">No Ballot v2 capability decisions are available for this Room.</p> : <div className="capability-list">{capabilities.map((capability) => { const copy = capabilityCopy[capability.status]; return <article className={capability.capability_granted ? "granted" : "not-granted"} key={capability.event_hash}><div><span>Sequence #{capability.sequence_number} · {capability.event_type}</span><strong>{copy.label}</strong><code>{capability.status}</code></div><p>{copy.description}</p><dl><div><dt>Payer</dt><dd>{capability.payer_account_id}</dd></div><div><dt>Event</dt><dd>{capability.event_hash}</dd></div>{capability.conflicts_with.length > 0 && <div><dt>Conflicts with</dt><dd>{capability.conflicts_with.join(", ")}</dd></div>}</dl></article>; })}</div>}</section>;
 }
 
 function FormalRanking({ title, entries, room }: { title: string; entries: RoomProjection["ballot"]["rankings"]["provisional"]["entries"]; room: Room }) {

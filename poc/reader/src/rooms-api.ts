@@ -41,6 +41,26 @@ export type ConfirmedGrooveEvent = {
 
 export type DemoRoomDuration = "2m" | "3m" | "5m" | "10m" | "1h" | "1d";
 
+export type BallotCapabilityStatus =
+  | "CAPABILITY_GRANTED"
+  | "EVIDENCE_NOT_VERIFIED"
+  | "UNIQUENESS_UNVERIFIABLE"
+  | "NULLIFIER_CONFLICT"
+  | "PAYER_CONFLICT"
+  | "NULLIFIER_AND_PAYER_CONFLICT";
+
+export type BallotCapability = {
+  room_id: string;
+  event_hash: string;
+  payer_account_id: string;
+  nullifier_commitment: string | null;
+  sequence_number: number;
+  event_type: "INITIAL" | "UPDATE" | "WITHDRAW";
+  status: BallotCapabilityStatus;
+  capability_granted: boolean;
+  conflicts_with: string[];
+};
+
 export type RoomProjection = {
   room: Room;
   groove: ConfirmedGrooveEvent[];
@@ -48,6 +68,7 @@ export type RoomProjection = {
   confirmed_shout_count: number;
   ballot: {
     status: string;
+    capabilities: BallotCapability[];
     rankings: {
       policy: { policy_id: string; position_points: [number, number, number]; binding: "PREVIEW" };
       provisional: { label: string; includes: string[]; result_hash: string; entries: FormalRankingEntry[] };
@@ -93,6 +114,22 @@ function isRoom(value: unknown): value is Room {
       typeof work.reading_url === "string");
 }
 
+function isBallotCapability(value: unknown): value is BallotCapability {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const capability = value as Partial<BallotCapability>;
+  const statuses: BallotCapabilityStatus[] = ["CAPABILITY_GRANTED", "EVIDENCE_NOT_VERIFIED", "UNIQUENESS_UNVERIFIABLE", "NULLIFIER_CONFLICT", "PAYER_CONFLICT", "NULLIFIER_AND_PAYER_CONFLICT"];
+  return typeof capability.room_id === "string" &&
+    typeof capability.event_hash === "string" && /^[0-9a-f]{64}$/.test(capability.event_hash) &&
+    typeof capability.payer_account_id === "string" && /^0\.0\.\d+$/.test(capability.payer_account_id) &&
+    (capability.nullifier_commitment === null || typeof capability.nullifier_commitment === "string") &&
+    Number.isInteger(capability.sequence_number) &&
+    ["INITIAL", "UPDATE", "WITHDRAW"].includes(String(capability.event_type)) &&
+    statuses.includes(capability.status as BallotCapabilityStatus) &&
+    typeof capability.capability_granted === "boolean" &&
+    capability.capability_granted === (capability.status === "CAPABILITY_GRANTED") &&
+    Array.isArray(capability.conflicts_with) && capability.conflicts_with.every((hash) => typeof hash === "string" && /^[0-9a-f]{64}$/.test(hash));
+}
+
 export async function fetchRooms(signal?: AbortSignal) {
   const response = await fetch("/api/rooms", { headers: { Accept: "application/json" }, signal });
   if (!response.ok) throw new Error(`Room service returned HTTP ${response.status}.`);
@@ -112,7 +149,8 @@ export async function fetchRoomProjection(roomId: string, signal?: AbortSignal) 
   const projection = await response.json() as RoomProjection;
   if (!isRoom(projection.room) || !Array.isArray(projection.groove) || !Array.isArray(projection.ranking) ||
     !projection.ranking.every((entry) => Number.isInteger(entry.rank) && typeof entry.work_id === "string" && Number.isInteger(entry.shout_count) && typeof entry.tied === "boolean") ||
-    !Number.isInteger(projection.confirmed_shout_count)) {
+    !Number.isInteger(projection.confirmed_shout_count) || !projection.ballot || !Array.isArray(projection.ballot.capabilities) ||
+    !projection.ballot.capabilities.every(isBallotCapability)) {
     throw new Error("Projection service returned an invalid response.");
   }
   return projection;
