@@ -7,6 +7,7 @@ import { requireAdmin } from "./admin-auth.js";
 import { environment, getWorldIdEnvironment } from "./config.js";
 import { ballotPrepareSchema, ballotRequestSchema, ballotV2ArtifactPrepareSchema, ballotV2ManualPrepareSchema, createBallotRequest, getBallotPreparation, getBallotStatus, prepareBallot, prepareBallotV2FromArtifact } from "./ballots.js";
 import { addVerificationObservation, projectBallotRankings, verificationObservationSchema } from "./ballot-projection.js";
+import { reconcileBallotCapability } from "./ballot-reconciliation.js";
 import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove, rankRoomWorks, recordGrooveWorldGrant } from "./groove.js";
 import { archiveDemoRoom, archiveRoom, createAdminRoom, createDemoRoom, createDemoRoomRequestSchema, createRoom, createRoomSchema, getAdminRoom, getRoom, getRoomAction, listActions, listAdminRooms, listDemoRooms, listRooms, requireRoomAction, retireAction, roomIdSchema } from "./rooms.js";
 
@@ -168,6 +169,10 @@ app.post("/api/admin/ballots/:eventHash/verification-observations", async (reque
   const parsed = verificationObservationSchema.safeParse(request.body);
   if (!parsed.success) { response.status(400).json({ error: "Invalid verification observation.", issues: parsed.error.issues }); return; }
   try { await addVerificationObservation(request.params.eventHash, parsed.data); response.status(201).json({ accepted: true, event_hash: request.params.eventHash, report_hash: parsed.data.report_hash }); } catch (error) { adminError(response, error); }
+});
+
+app.post("/api/admin/ballots/:eventHash/reconcile", async (request, response) => {
+  try { response.json(await reconcileBallotCapability(request.params.eventHash, response.locals.adminEmail)); } catch (error) { adminError(response, error); }
 });
 
 app.post("/api/admin/ballots/v2/prepare-from-artifact", async (request, response) => {

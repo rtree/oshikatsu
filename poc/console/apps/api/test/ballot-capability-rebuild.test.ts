@@ -127,6 +127,33 @@ test("fetches Mirror and its committed artifact without granting optimistic capa
   assert.equal(foldBallotCapabilities([verifiedRecord])[0]?.status, "CAPABILITY_GRANTED");
 });
 
+test("public rebuild aborts an oversized streamed artifact", async () => {
+  let cancelled = false;
+  const oversized = new Uint8Array(64 * 1024 + 1);
+  const fetcher = async (url: string) => {
+    if (url.includes("/api/v1/topics/")) return {
+      ok: true,
+      status: 200,
+      json: async () => ({ message: Buffer.from(messageBytes).toString("base64"), payer_account_id: artifact.account_id, sequence_number: 11, consensus_timestamp: "1785027653.123456789", chunk_info: null }),
+      arrayBuffer: async () => new ArrayBuffer(0),
+    };
+    let sent = false;
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      body: { getReader: () => ({
+        read: async () => sent ? { done: true, value: undefined } : (sent = true, { done: false, value: oversized }),
+        cancel: async () => { cancelled = true; },
+      }) } as unknown as ReadableStream<Uint8Array>,
+      json: async () => ({}),
+      arrayBuffer: async () => oversized.buffer,
+    };
+  };
+  await assert.rejects(() => rebuildBallotCapabilityFromPublicSources({ topic_id: "0.0.9745676", sequence_number: 11, verification_observations: [] }, fetcher), /too large/);
+  assert.equal(cancelled, true);
+});
+
 test("reconstructs legacy testnet sequence #11 from public sources", async () => {
   const publicArtifactBytes = await readFile(new URL("../../../../../a/2de1876db9e5ba59cbe8b6b5b111eb0b55b42e3283c5f64749e1db8cdd9444e6.json", import.meta.url));
   const publicArtifact = JSON.parse(publicArtifactBytes.toString("utf8")) as WorldArtifactV1;

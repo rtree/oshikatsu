@@ -43,3 +43,10 @@ test("Room projection returns H3/H4 outcomes for verified, unverified, conflicti
     ],
   );
 });
+
+test("Room projection fails closed for duplicate topic sequence evidence", () => {
+  assert.throws(() => projectBallotRankingRecords("room-a", ["work-a", "work-b", "work-c"], [
+    projectionRecord({ event_hash: "a".repeat(64), sequence_number: 1 }),
+    projectionRecord({ event_hash: "b".repeat(64), sequence_number: 1 }),
+  ]), /DUPLICATE_BALLOT_TOPIC_SEQUENCE/);
+});

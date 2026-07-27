@@ -38,7 +38,15 @@ type StoredBallotRecord = Omit<RankedBallotRecord, "verification"> & {
 };
 
 export async function recordUnverifiedBallot(record: StoredBallotRecord) {
-  await getFirestore().collection("ballot_records").doc(record.event_hash).create(record);
+  const store = getFirestore();
+  const recordReference = store.collection("ballot_records").doc(record.event_hash);
+  const roomStateReference = store.collection("ballot_room_state").doc(record.room_id);
+  await store.runTransaction(async (transaction) => {
+    const roomState = await transaction.get(roomStateReference);
+    const revision = Number(roomState.data()?.revision ?? 0);
+    transaction.create(recordReference, record);
+    transaction.set(roomStateReference, { revision: revision + 1, updated_at: new Date().toISOString() }, { merge: true });
+  });
   return {
     status: "RECORDED_UNVERIFIED" as const,
     counted: false,
@@ -53,14 +61,32 @@ export async function recordUnverifiedBallot(record: StoredBallotRecord) {
 export async function addVerificationObservation(eventHash: string, observation: BallotVerificationObservation) {
   const recordReference = getFirestore().collection("ballot_records").doc(eventHash);
   if (!(await recordReference.get()).exists) throw new Error("BALLOT_RECORD_NOT_FOUND");
-  await recordReference.collection("verification_observations").doc(observation.report_hash).set(observation);
+  const observationReference = recordReference.collection("verification_observations").doc(observation.report_hash);
+  await getFirestore().runTransaction(async (transaction) => {
+    const [record, existing] = await Promise.all([transaction.get(recordReference), transaction.get(observationReference)]);
+    if (!record.exists) throw new Error("BALLOT_RECORD_NOT_FOUND");
+    if (existing.exists) {
+      if (JSON.stringify(existing.data()) !== JSON.stringify(observation)) throw new Error("VERIFICATION_OBSERVATION_CONFLICT");
+      return;
+    }
+    let count = Number(record.data()?.verification_observation_count ?? -1);
+    if (count < 0) {
+      const observations = await transaction.get(recordReference.collection("verification_observations").limit(101));
+      count = observations.size;
+    }
+    if (count >= 100) throw new Error("BALLOT_OBSERVATION_LIMIT_EXCEEDED");
+    transaction.create(observationReference, observation);
+    transaction.update(recordReference, { verification_observation_count: count + 1 });
+  });
 }
 
 export async function projectBallotRankings(roomId: string, nomineeIds: string[]) {
-  const snapshot = await getFirestore().collection("ballot_records").where("room_id", "==", roomId).limit(500).get();
+  const snapshot = await getFirestore().collection("ballot_records").where("room_id", "==", roomId).limit(501).get();
+  if (snapshot.size > 500) throw new Error("BALLOT_RECORD_LIMIT_EXCEEDED");
   const records = await Promise.all(snapshot.docs.map(async (document) => {
     const stored = document.data() as StoredBallotRecord;
-    const observations = await document.ref.collection("verification_observations").limit(100).get();
+    const observations = await document.ref.collection("verification_observations").limit(101).get();
+    if (observations.size > 100) throw new Error("BALLOT_OBSERVATION_LIMIT_EXCEEDED");
     return {
       ...stored,
       verification: foldBallotVerification(observations.docs.map((item) => item.data() as BallotVerificationObservation)),
@@ -70,6 +96,12 @@ export async function projectBallotRankings(roomId: string, nomineeIds: string[]
 }
 
 export function projectBallotRankingRecords(roomId: string, nomineeIds: string[], records: Array<StoredBallotRecord & RankedBallotRecord>) {
+  const sequenceClaims = new Set<string>();
+  for (const record of records) {
+    const key = `${record.topic_id}\0${record.sequence_number}`;
+    if (sequenceClaims.has(key)) throw new Error("DUPLICATE_BALLOT_TOPIC_SEQUENCE");
+    sequenceClaims.add(key);
+  }
   const provisional = rankBallots(nomineeIds, records, previewRankingPolicy, "PROVISIONAL");
   const verified = rankBallots(nomineeIds, records, previewRankingPolicy, "VERIFIED");
   const capabilities = foldBallotCapabilities(records.map((record) => ({
