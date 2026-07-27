@@ -108,18 +108,6 @@ function isoToHcsTimestamp(value: string) {
   return `${Math.floor(milliseconds / 1000)}.${String(milliseconds % 1000).padStart(3, "0")}000000`;
 }
 
-function hcsNanoseconds(value: string) {
-  const match = /^(\d+)\.(\d{1,9})$/.exec(value);
-  if (!match?.[1] || !match[2]) throw new Error("Invalid HCS consensus timestamp.");
-  return BigInt(match[1]) * 1_000_000_000n + BigInt(match[2].padEnd(9, "0"));
-}
-
-function isoNanoseconds(value: string) {
-  const milliseconds = Date.parse(value);
-  if (!Number.isFinite(milliseconds)) throw new Error("Invalid preparation timestamp.");
-  return BigInt(milliseconds) * 1_000_000n;
-}
-
 async function fetchMirrorLifecycle(roomId: string, topicId: string, opensAt: string) {
   const records: BallotLifecycleRecord[] = [];
   let url: string | null = `https://testnet.mirrornode.hedera.com/api/v1/topics/${topicId}/messages?limit=100&order=asc&timestamp=gte:${isoToHcsTimestamp(opensAt)}`;
@@ -182,8 +170,6 @@ export async function getBallotLifecycleStatus(prepareId: string, transactionId:
   const matches = transactions.filter((item) => item.name === "CONSENSUSSUBMITMESSAGE" && item.result === "SUCCESS" && item.entity_id === preparation.topic_id);
   if (matches.length !== 1) return { status: "INVALID" as const, reason: "TRANSACTION_MISMATCH" };
   const consensusTimestamp = matches[0]!.consensus_timestamp;
-  const consensusTime = hcsNanoseconds(consensusTimestamp);
-  if (consensusTime < isoNanoseconds(preparation.created_at) || consensusTime > isoNanoseconds(preparation.expires_at)) return { status: "INVALID" as const, reason: "TRANSACTION_OUTSIDE_PREPARATION_WINDOW" };
   const messageResponse = await fetch(`https://testnet.mirrornode.hedera.com/api/v1/topics/${preparation.topic_id}/messages?timestamp=${consensusTimestamp}`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10_000) });
   if (!messageResponse.ok) throw new Error("Mirror message lookup failed.");
   const messages = (await messageResponse.json() as { messages?: MirrorMessage[] }).messages ?? [];

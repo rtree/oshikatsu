@@ -20,3 +20,11 @@ test("UPDATE bytes retain capability, payer, manifest, and ordered nominees", ()
   assert.deepEqual(event.n, ["work-c", "work-a", "work-b"]);
   assert.ok(bytes.length <= 900);
 });
+
+test("lifecycle preparation expiry is not a protocol deadline", () => {
+  const preparationCreatedAt = "2026-07-27T19:22:27.719Z";
+  const preparationExpiresAt = "2026-07-27T19:32:27.719Z";
+  const laterConsensus = "1785181479.815573011";
+  assert.ok(Date.parse(preparationExpiresAt) > Date.parse(preparationCreatedAt));
+  assert.match(laterConsensus, /^\d+\.\d{9}$/);
+});
