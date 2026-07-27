@@ -8,6 +8,7 @@ import { environment, getWorldIdEnvironment } from "./config.js";
 import { ballotPrepareSchema, ballotRequestSchema, ballotV2ArtifactPrepareSchema, ballotV2ManualPrepareSchema, createBallotRequest, getBallotPreparation, getBallotStatus, prepareBallot, prepareBallotV2FromArtifact } from "./ballots.js";
 import { addVerificationObservation, projectBallotRankings, verificationObservationSchema } from "./ballot-projection.js";
 import { reconcileBallotCapability } from "./ballot-reconciliation.js";
+import { ballotLifecyclePrepareSchema, getBallotLifecycleStatus, prepareBallotLifecycle } from "./ballot-lifecycle.js";
 import { getGrooveStatus, groovePrepareSchema, listConfirmedGroove, prepareGroove, rankRoomWorks, recordGrooveWorldGrant } from "./groove.js";
 import { archiveDemoRoom, archiveRoom, createAdminRoom, createDemoRoom, createDemoRoomRequestSchema, createRoom, createRoomSchema, getAdminRoom, getRoom, getRoomAction, listActions, listAdminRooms, listDemoRooms, listRooms, requireRoomAction, retireAction, roomIdSchema } from "./rooms.js";
 
@@ -300,6 +301,17 @@ app.post("/api/ballots/v2/prepare-from-artifact", async (request, response) => {
   const parsed = ballotV2ManualPrepareSchema.safeParse(request.body);
   if (!parsed.success) { response.status(400).json({ error: "Invalid Ballot v2 artifact input.", issues: parsed.error.issues }); return; }
   try { response.status(201).json({ preparation: await prepareBallotV2FromArtifact(parsed.data) }); } catch (error) { operationError(response, error, "Ballot v2 preparation failed."); }
+});
+
+app.post("/api/ballots/lifecycle/prepare", async (request, response) => {
+  const parsed = ballotLifecyclePrepareSchema.safeParse(request.body);
+  if (!parsed.success) { response.status(400).json({ error: "Invalid Ballot lifecycle input.", issues: parsed.error.issues }); return; }
+  try { response.status(201).json({ preparation: await prepareBallotLifecycle(parsed.data) }); } catch (error) { operationError(response, error, "Ballot lifecycle preparation failed."); }
+});
+
+app.get("/api/ballots/lifecycle/status/:transactionId", async (request, response) => {
+  const prepareId = typeof request.query.prepare_id === "string" ? request.query.prepare_id : "";
+  try { response.json(await getBallotLifecycleStatus(prepareId, request.params.transactionId)); } catch (error) { operationError(response, error, "Ballot lifecycle status failed."); }
 });
 
 app.get("/api/ballots/status/:transactionId", async (request, response) => {

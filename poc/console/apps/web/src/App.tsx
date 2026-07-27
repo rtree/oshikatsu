@@ -38,6 +38,14 @@ type VerificationArtifact = {
   signalMatches: boolean;
 };
 
+type BallotCapability = {
+  event_hash: string;
+  payer_account_id: string;
+  sequence_number: number;
+  status: string;
+  capability_granted: boolean;
+};
+
 function getWorldIdErrorMessage(errorCode: string) {
   if (errorCode === "timeout") {
     return "接続が完了しませんでした。World Appの前回結果を閉じてから、新しいQRで再試行してください。";
@@ -76,21 +84,41 @@ export function App() {
   const [artifactReference, setArtifactReference] = useState("");
   const [ballotPreparation, setBallotPreparation] = useState<PreparedBallot | null>(null);
   const [ballotReceipt, setBallotReceipt] = useState<Record<string, unknown> | null>(null);
+  const [capabilities, setCapabilities] = useState<BallotCapability[]>([]);
+  const [lifecycleReceipt, setLifecycleReceipt] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     void fetch("/api/rooms")
       .then((response) => response.json())
-      .then(({ rooms: availableRooms }: { rooms: Room[] }) => {
-        const selectableRooms = ballotV2Mode
-          ? availableRooms.filter((room) => room.acceptance_run_id === "reader-demo")
-          : availableRooms;
+      .then(async ({ rooms: availableRooms }: { rooms: Room[] }) => {
+        const requestedRoomId = searchParams.get("room");
+        let selectableRooms = ballotV2Mode ? availableRooms.filter((room) => room.acceptance_run_id === "reader-demo") : availableRooms;
+        if (requestedRoomId && !selectableRooms.some((room) => room.id === requestedRoomId)) {
+          const detail = await fetch(`/api/rooms/${encodeURIComponent(requestedRoomId)}`);
+          if (detail.ok) selectableRooms = [(await detail.json() as { room: Room }).room, ...selectableRooms];
+        }
         setRooms(selectableRooms);
-        const initialRoom = selectableRooms[0];
+        const initialRoom = selectableRooms.find((room) => room.id === requestedRoomId) ?? selectableRooms[0];
         setRoomId(initialRoom?.id ?? "");
         setNomineeIds(initialRoom?.works?.slice(0, 3).map((work) => work.id).join(",") ?? "");
       })
       .catch(() => setError("Room一覧を取得できませんでした。"));
   }, []);
+
+  useEffect(() => {
+    setCapabilities([]);
+    setLifecycleReceipt(null);
+    if (!roomId) return;
+    const requestedRoomId = roomId;
+    const controller = new AbortController();
+    void fetch(`/api/projection/rooms/${encodeURIComponent(requestedRoomId)}`, { signal: controller.signal })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Projection unavailable")))
+      .then((projection: { room?: { id?: string }; ballot?: { capabilities?: BallotCapability[] } }) => {
+        if (projection.room?.id === requestedRoomId) setCapabilities(projection.ballot?.capabilities ?? []);
+      })
+      .catch((caughtError) => { if (!(caughtError instanceof DOMException && caughtError.name === "AbortError")) setCapabilities([]); });
+    return () => controller.abort();
+  }, [roomId]);
 
   async function startProof() {
     setIsLoading(true);
@@ -236,6 +264,36 @@ export function App() {
     }
   }
 
+  async function sendLifecycle(eventType: "UPDATE" | "WITHDRAW") {
+    setError(null);
+    setLifecycleReceipt(null);
+    const capability = capabilities.find((item) => item.capability_granted && item.payer_account_id === accountId);
+    if (!capability) { setError("No granted capability matches the selected payer in this Room."); return; }
+    const nominees = nomineeIds.split(",").map((value) => value.trim()).filter(Boolean);
+    if (eventType === "UPDATE" && (nominees.length !== 3 || new Set(nominees).size !== 3)) { setError("UPDATE requires three distinct ordered nominees."); return; }
+    try {
+      setWalletStatus(`${eventType}を準備中`);
+      const prepareResponse = await fetch("/api/ballots/lifecycle/prepare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event_type: eventType, room_id: roomId, capability_event_hash: capability.event_hash, account_id: accountId, ...(eventType === "UPDATE" ? { nominee_ids: nominees } : {}) }) });
+      const prepareBody = await prepareResponse.json() as { preparation?: PreparedBallot; error?: string };
+      if (!prepareResponse.ok || !prepareBody.preparation) throw new Error(prepareBody.error ?? "Lifecycle preparation failed.");
+      setWalletStatus(`HashPackで${eventType}投稿を承認してください`);
+      const transactionId = await submitPreparedBallot(prepareBody.preparation);
+      setWalletStatus(`${eventType}をMirror確認中`);
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const statusResponse = await fetch(`/api/ballots/lifecycle/status/${encodeURIComponent(transactionId)}?prepare_id=${encodeURIComponent(prepareBody.preparation.id)}`);
+        const status = await statusResponse.json() as Record<string, unknown> & { status?: string; error?: string };
+        if (!statusResponse.ok) throw new Error(status.error ?? "Lifecycle status failed.");
+        if (status.status === "RECORDED") { setLifecycleReceipt({ ...status, transaction_id: transactionId }); setWalletStatus(`${eventType}をHCSへ記録しました`); return; }
+        if (status.status === "INVALID") throw new Error(String(status.reason ?? "Lifecycle event is invalid."));
+        await new Promise((resolve) => setTimeout(resolve, 750));
+      }
+      throw new Error("Lifecycle Mirror confirmation timed out.");
+    } catch (caughtError) {
+      setWalletStatus(`${eventType}未確認`);
+      setError(caughtError instanceof Error ? caughtError.message : "Lifecycle submission failed.");
+    }
+  }
+
   return (
     <main className="shell">
       <header>
@@ -328,7 +386,7 @@ export function App() {
           </dl>
         )}
       </section>
-      {ballotV2Mode && <section className="wallet-section" aria-labelledby="ballot-v2-heading"><h2 id="ballot-v2-heading">Ballot v2 optimistic receipt</h2><p className="lede">Publish the canonical World artifact at a commit-fixed GitHub raw URL. The API fetches and verifies those exact bytes before HashPack approval. The Hedera receipt remains uncounted until historical verification.</p><label className="room-field artifact-reference-field"><span>Artifact SHA-256</span><input value={artifactSha256} onChange={(event) => { setArtifactSha256(event.target.value.trim().toLowerCase()); setBallotPreparation(null); setBallotReceipt(null); }} placeholder="64 lowercase hex characters" /></label><label className="room-field artifact-reference-field"><span>Commit-fixed artifact URL</span><input type="url" value={artifactReference} onChange={(event) => { setArtifactReference(event.target.value.trim()); setBallotPreparation(null); setBallotReceipt(null); }} placeholder="https://raw.githubusercontent.com/rtree/oshikatsu/&lt;commit&gt;/a/&lt;sha&gt;.json" /></label><button type="button" onClick={() => void sendBallotV2()} disabled={!/^[0-9a-f]{64}$/.test(artifactSha256) || !artifactReference}>Verify artifact and submit Ballot v2</button>{ballotPreparation && <dl className="artifact"><div><dt>Preparation</dt><dd>{ballotPreparation.id}</dd></div><div><dt>Bytes</dt><dd>{ballotPreparation.message_bytes}</dd></div><div><dt>Expected payer</dt><dd>{ballotPreparation.account_id}</dd></div></dl>}{ballotReceipt && <dl className="artifact"><div><dt>Status</dt><dd>{String(ballotReceipt.status)}</dd></div><div><dt>Sequence</dt><dd>{String(ballotReceipt.sequence_number)}</dd></div><div><dt>Payer</dt><dd>{String(ballotReceipt.payer_account_id)}</dd></div><div><dt>Counted</dt><dd>{String(ballotReceipt.counted)}</dd></div></dl>}</section>}
+      {ballotV2Mode && <><section className="wallet-section" aria-labelledby="ballot-v2-heading"><h2 id="ballot-v2-heading">Ballot v2 optimistic receipt</h2><p className="lede">Publish the canonical World artifact at a commit-fixed GitHub raw URL. The API fetches and verifies those exact bytes before HashPack approval. The Hedera receipt remains uncounted until historical verification.</p><label className="room-field artifact-reference-field"><span>Artifact SHA-256</span><input value={artifactSha256} onChange={(event) => { setArtifactSha256(event.target.value.trim().toLowerCase()); setBallotPreparation(null); setBallotReceipt(null); }} placeholder="64 lowercase hex characters" /></label><label className="room-field artifact-reference-field"><span>Commit-fixed artifact URL</span><input type="url" value={artifactReference} onChange={(event) => { setArtifactReference(event.target.value.trim()); setBallotPreparation(null); setBallotReceipt(null); }} placeholder="https://raw.githubusercontent.com/rtree/oshikatsu/&lt;commit&gt;/a/&lt;sha&gt;.json" /></label><button type="button" onClick={() => void sendBallotV2()} disabled={!/^[0-9a-f]{64}$/.test(artifactSha256) || !artifactReference}>Verify artifact and submit Ballot v2</button>{ballotPreparation && <dl className="artifact"><div><dt>Preparation</dt><dd>{ballotPreparation.id}</dd></div><div><dt>Bytes</dt><dd>{ballotPreparation.message_bytes}</dd></div><div><dt>Expected payer</dt><dd>{ballotPreparation.account_id}</dd></div></dl>}{ballotReceipt && <dl className="artifact"><div><dt>Status</dt><dd>{String(ballotReceipt.status)}</dd></div><div><dt>Sequence</dt><dd>{String(ballotReceipt.sequence_number)}</dd></div><div><dt>Payer</dt><dd>{String(ballotReceipt.payer_account_id)}</dd></div><div><dt>Counted</dt><dd>{String(ballotReceipt.counted)}</dd></div></dl>}</section><section className="wallet-section" aria-labelledby="lifecycle-heading"><h2 id="lifecycle-heading">Ballot lifecycle</h2><p className="lede">A granted capability may update or withdraw the current intent. HCS consensus order and the immutable Room deadline decide whether the event is accepted.</p><p className="message">Granted capabilities: {capabilities.filter((item) => item.capability_granted).length}</p><div className="wallet-actions"><button type="button" onClick={() => void sendLifecycle("UPDATE")}>Submit UPDATE</button><button type="button" onClick={() => void sendLifecycle("WITHDRAW")}>Submit WITHDRAW</button></div>{lifecycleReceipt && <dl className="artifact"><div><dt>Status</dt><dd>{String(lifecycleReceipt.status)}</dd></div><div><dt>Accepted</dt><dd>{String(lifecycleReceipt.accepted)}</dd></div><div><dt>Sequence</dt><dd>{String(lifecycleReceipt.sequence_number)}</dd></div><div><dt>Current intent</dt><dd>{JSON.stringify(lifecycleReceipt.current_intent)}</dd></div><div><dt>Result hash</dt><dd>{String(lifecycleReceipt.result_hash)}</dd></div></dl>}</section></>}
     </main>
   );
 }
